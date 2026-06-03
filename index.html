@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Corpus</title>
+    <meta charset="utf-8">
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+            background: #f6f7f9;
+            color: #17202a;
+            overflow-y: auto;
+        }
+
+        header {
+            background: #ffffff;
+            border-bottom: 1px solid #d9dee7;
+            padding: 18px 28px 14px;
+        }
+
+        h1 {
+            margin: 0 0 14px;
+            font-size: 28px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+        }
+
+        .tab-button {
+            border: 1px solid #c7ced9;
+            background: #f6f7f9;
+            padding: 10px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .tab-button.active {
+            background: #1456a0;
+            border-color: #1456a0;
+            color: #ffffff;
+        }
+
+        main {
+            padding: 22px 28px 40px;
+        }
+
+        .panel {
+            display: none;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        .section {
+            background: #ffffff;
+            border: 1px solid #d9dee7;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            padding: 16px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 12px;
+            align-items: end;
+        }
+
+        label {
+            display: block;
+            margin: 8px 0 4px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        input, textarea, select, button {
+            font: inherit;
+        }
+
+        input, textarea, select {
+            box-sizing: border-box;
+            width: 100%;
+            border: 1px solid #c7ced9;
+            border-radius: 6px;
+            padding: 8px;
+            background: #ffffff;
+        }
+
+        input[type="checkbox"] {
+            width: auto;
+        }
+
+        textarea {
+            min-height: 94px;
+            resize: vertical;
+        }
+
+        button {
+            border: 1px solid #1456a0;
+            background: #1456a0;
+            color: #ffffff;
+            border-radius: 6px;
+            padding: 9px 12px;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        button.secondary {
+            background: #ffffff;
+            color: #1456a0;
+        }
+
+        button.danger {
+            background: #b42318;
+            border-color: #b42318;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        th, td {
+            border-bottom: 1px solid #e1e6ef;
+            padding: 8px;
+            text-align: left;
+            vertical-align: top;
+            word-break: break-word;
+        }
+
+        th {
+            background: #f2f4f7;
+        }
+
+        .status-strip {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .metric {
+            border: 1px solid #d9dee7;
+            border-radius: 6px;
+            padding: 10px;
+            background: #fbfcfe;
+        }
+
+        .metric strong {
+            display: block;
+            font-size: 22px;
+        }
+
+        .gallery {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 14px;
+        }
+
+        .image-list {
+            max-height: 430px;
+            overflow: auto;
+            border: 1px solid #d9dee7;
+            border-radius: 6px;
+        }
+
+        .image-item {
+            border: 0;
+            border-bottom: 1px solid #e1e6ef;
+            background: #ffffff;
+            color: #17202a;
+            width: 100%;
+            border-radius: 0;
+            text-align: left;
+            padding: 9px;
+            font-weight: 400;
+        }
+
+        .image-item.active {
+            background: #eaf2ff;
+        }
+
+        .preview {
+            min-height: 360px;
+            border: 1px solid #d9dee7;
+            border-radius: 6px;
+            padding: 10px;
+            background: #fbfcfe;
+        }
+
+        .preview img, #result img {
+            max-width: 100%;
+            height: auto;
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin: 8px 0 12px;
+        }
+
+        .badge {
+            border-radius: 999px;
+            padding: 4px 8px;
+            background: #e7edf6;
+            color: #17202a;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .badge.ready {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .badge.warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge.blocked {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .log {
+            white-space: pre-wrap;
+            background: #111827;
+            color: #e5e7eb;
+            padding: 12px;
+            border-radius: 6px;
+            max-height: 220px;
+            overflow: auto;
+            font-size: 12px;
+        }
+
+        .measurement-help {
+            margin: 10px 0 14px;
+            padding: 10px 12px;
+            border-left: 4px solid #1456a0;
+            background: #eef5ff;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .inline-check {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-height: 38px;
+        }
+
+        .muted {
+            color: #64748b;
+            font-size: 12px;
+        }
+
+        .advanced-settings {
+            margin-top: 12px;
+        }
+
+        .advanced-settings summary {
+            cursor: pointer;
+            font-weight: 700;
+            color: #1456a0;
+        }
+
+        #result img {
+            max-width: 100%;
+            display: block;
+        }
+
+        .img-wrap {
+            position: relative;
+            display: inline-block;
+            line-height: 0;
+        }
+
+        #particleOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: auto;
+        }
+
+        #particleMenu {
+            display: none;
+            position: fixed;
+            background: #ffffff;
+            border: 1px solid #d9dee7;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+            z-index: 9999;
+            min-width: 160px;
+        }
+
+        #particleMenu .pm-id {
+            font-size: 12px;
+            color: #555;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 6px;
+        }
+
+        #particleMenu button {
+            display: block;
+            width: 100%;
+            margin-bottom: 6px;
+            padding: 7px 10px;
+            font-size: 13px;
+        }
+
+        #particleMenu button:last-child {
+            margin-bottom: 0;
+        }
+
+        .scale-tool {
+            display: none;
+            margin-top: 14px;
+            border: 1px solid #d9dee7;
+            border-radius: 8px;
+            padding: 12px;
+            background: #fbfcfe;
+        }
+
+        .scale-tool.active {
+            display: block;
+        }
+
+        .scale-canvas-wrap {
+            overflow: auto;
+            border: 1px solid #d9dee7;
+            border-radius: 6px;
+            background: #111827;
+            padding: 8px;
+        }
+
+        #scaleCanvas {
+            display: block;
+            cursor: crosshair;
+        }
+
+        .scale-readout {
+            margin-top: 8px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>Corpus</h1>
+        <nav class="tabs">
+            <button class="tab-button active" data-tab="measurementPanel">Medición de Partículas</button>
+            <button class="tab-button" data-tab="corpusPanel">Constructor de Corpus</button>
+        </nav>
+    </header>
+
+    <main>
+        <section id="measurementPanel" class="panel active">
+            <div class="section">
+                <h2>Medición de Partículas</h2>
+                <div class="measurement-help" id="measurementHint"></div>
+                <div class="grid">
+                    <div>
+                        <label for="imageInput">Imagen</label>
+                        <input type="file" id="imageInput" accept="image/*,.tif,.tiff">
+                    </div>
+                    <div>
+                        <label for="shapePreset">1. Forma</label>
+                        <select id="shapePreset">
+                            <option value="spheres">Esferas núcleo-corteza</option>
+                            <option value="pellets">Pellets / varillas núcleo-corteza</option>
+                            <option value="generic">Partículas genéricas</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="measurementMode">2. Qué medir</label>
+                        <select id="measurementMode">
+                            <option value="both">Medir ambos por separado</option>
+                            <option value="au">Medir decoraciones Au</option>
+                            <option value="sio2">Medir portadores SiO2</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="scale">3. Longitud de escala (nm)</label>
+                        <input type="number" id="scale" min="0" step="0.0001">
+                        <div class="muted">Número impreso junto a la barra de escala, p.ej. 50.</div>
+                    </div>
+                    <div>
+                        <label for="Count">Bin decoración (nm)</label>
+                        <input type="number" id="Count" min="0" step="0.0001" placeholder="auto">
+                        <label for="CountCarrier">Bin portador (nm)</label>
+                        <input type="number" id="CountCarrier" min="0" step="0.0001" placeholder="auto">
+                    </div>
+                    <div>
+                        <label for="manualScalePx">Longitud manual de barra (px)</label>
+                        <input type="number" id="manualScalePx" min="0" step="0.0001" placeholder="opcional">
+                        <div class="muted">Dejar vacío si la detección automática es correcta.</div>
+                    </div>
+                    <div class="inline-check">
+                        <input type="checkbox" id="excludeEdges" checked>
+                        <label for="excludeEdges">Excluir partículas en el borde</label>
+                    </div>
+                </div>
+                <details class="advanced-settings">
+                    <summary>Rangos de radio avanzados</summary>
+                    <div class="grid">
+                        <div>
+                            <label for="auMinRadius">Radio mín. Au/Núcleo (nm)</label>
+                            <input type="number" id="auMinRadius" min="0" step="0.0001">
+                        </div>
+                        <div>
+                            <label for="auMaxRadius">Radio máx. Au/Núcleo (nm)</label>
+                            <input type="number" id="auMaxRadius" min="0" step="0.0001">
+                        </div>
+                        <div>
+                            <label for="sio2MinRadius">Radio mín. SiO2/Exterior (nm)</label>
+                            <input type="number" id="sio2MinRadius" min="0" step="0.0001">
+                        </div>
+                        <div>
+                            <label for="sio2MaxRadius">Radio máx. SiO2/Exterior (nm)</label>
+                            <input type="number" id="sio2MaxRadius" min="0" step="0.0001">
+                        </div>
+                        <div class="inline-check">
+                            <input type="checkbox" id="watershed">
+                            <label for="watershed">Separar partículas en contacto (watershed)</label>
+                        </div>
+                    </div>
+                </details>
+                <div class="actions">
+                    <button id="processButton">Procesar imagen</button>
+                    <button id="recommendedSettingsButton" class="secondary">Restaurar configuración</button>
+                </div>
+                <div class="scale-tool" id="scaleTool">
+                    <h3>Línea de escala manual</h3>
+                    <div class="muted">Haz click en los dos extremos de la barra de escala impresa. Rellena la longitud en px automáticamente.</div>
+                    <div class="actions">
+                        <button id="markScaleLineButton" class="secondary">Marcar barra de escala</button>
+                        <button id="clearScaleLineButton" class="secondary">Limpiar barra de escala</button>
+                    </div>
+                    <div class="scale-canvas-wrap">
+                        <canvas id="scaleCanvas"></canvas>
+                    </div>
+                    <div class="scale-readout" id="scaleLineStatus">Sin línea de escala marcada.</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div id="manualMeasureBar" style="display:none;margin-bottom:10px;align-items:center;gap:12px;flex-wrap:wrap">
+                    <button id="manualMeasureBtn" class="secondary">Medición manual</button>
+                    <span id="manualMeasureStatus" style="font-size:13px;color:#555"></span>
+                    <span id="manualMeasureResult" style="font-size:14px;font-weight:700;color:#1456a0"></span>
+                    <span id="manualMeasureAddArea" style="display:none;align-items:center;gap:8px">
+                        <select id="manualMeasureClass" style="padding:4px 8px;border:1px solid #c7ced9;border-radius:6px;font:inherit">
+                            <option value="Au_decorations">Decoración Au</option>
+                            <option value="SiO2_carrier">Portador SiO2</option>
+                        </select>
+                        <button id="manualMeasureAdd" style="padding:5px 14px">Agregar</button>
+                    </span>
+                    <button id="manualMeasureClear" class="secondary" style="font-size:12px;padding:4px 10px">Limpiar</button>
+                </div>
+                <div id="result"></div>
+                <div id="measurementSummary" class="status-strip"></div>
+                <div id="chartsContainer"></div>
+                <div id="measurementDetails"></div>
+            </div>
+        </section>
+
+        <section id="corpusPanel" class="panel">
+            <div class="status-strip" id="corpusSummary"></div>
+
+            <div class="section">
+                <h2>1. Fuentes</h2>
+                <label for="sourceInput">Lista de DOIs o URLs</label>
+                <textarea id="sourceInput" placeholder="Un DOI o URL por línea. Ejemplo: https://www.mdpi.com/..."></textarea>
+                <div class="actions">
+                    <button id="validateSourcesButton">Buscar / Validar fuentes</button>
+                    <button id="refreshCorpusButton" class="secondary">Actualizar estado</button>
+                </div>
+                <div id="sourcesTable"></div>
+            </div>
+
+            <div class="section">
+                <h2>2. Descarga</h2>
+                <div class="actions">
+                    <button id="downloadAcceptedButton">Descargar aceptados</button>
+                    <button id="extractFiguresButton" class="secondary">Extraer figuras</button>
+                </div>
+                <progress id="corpusProgress" max="1" style="display:none;width:100%;margin-top:10px;"></progress>
+            </div>
+
+            <div class="section">
+                <h2>3. Curación</h2>
+                <div class="gallery">
+                    <div>
+                        <div class="image-list" id="imageList"></div>
+                    </div>
+                    <div class="preview">
+                        <img id="corpusPreview" alt="Selected corpus image">
+                        <div class="grid">
+                            <div>
+                                <label for="curationModality">Modalidad</label>
+                                <input id="curationModality" placeholder="TEM, BF-TEM, HAADF">
+                            </div>
+                            <div>
+                                <label for="curationLicense">Licencia</label>
+                                <input id="curationLicense" placeholder="CC BY 4.0">
+                            </div>
+                        </div>
+                        <label for="curationNotes">Notas</label>
+                        <textarea id="curationNotes" placeholder="Notas del panel, exclusiones, calidad visible de la capa..."></textarea>
+                        <div class="actions">
+                            <button id="acceptImageButton">Aceptar</button>
+                            <button id="reviewImageButton" class="secondary">Revisar</button>
+                            <button id="rejectImageButton" class="danger">Rechazar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>4. Calibración</h2>
+                <div class="grid">
+                    <div>
+                        <label for="scaleNm">Longitud de escala (nm)</label>
+                        <input type="number" id="scaleNm" step="0.0001">
+                    </div>
+                    <div>
+                        <label for="scalePx">Longitud de escala (px)</label>
+                        <input type="number" id="scalePx" step="0.0001">
+                    </div>
+                    <div>
+                        <label for="nmPerPx">nm/px</label>
+                        <input id="nmPerPx" readonly>
+                    </div>
+                </div>
+                <div class="actions">
+                    <button id="saveCalibrationButton">Guardar calibración</button>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>5. Metadatos</h2>
+                <div class="badges" id="metadataBadges"></div>
+                <div class="grid">
+                    <div>
+                        <label for="metaSourceLicenseStatus">Estado de licencia</label>
+                        <select id="metaSourceLicenseStatus">
+                            <option value="">Sin definir</option>
+                            <option value="accepted">aceptado</option>
+                            <option value="missing">faltante</option>
+                            <option value="rejected_for_public_corpus">rechazado (corpus público)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="metaQualityStatus">Estado de calidad</label>
+                        <select id="metaQualityStatus">
+                            <option value="">Sin definir</option>
+                            <option value="ready">listo</option>
+                            <option value="needs_review">revisar</option>
+                            <option value="rejected">rechazado</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="metaScaleStatus">Estado de escala</label>
+                        <select id="metaScaleStatus">
+                            <option value="">Sin definir</option>
+                            <option value="confirmed">confirmado</option>
+                            <option value="estimated">estimado</option>
+                            <option value="missing">faltante</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="metaFileSha">SHA256</label>
+                        <input id="metaFileSha" readonly>
+                    </div>
+                </div>
+                <label for="metaCaption">Descripción</label>
+                <textarea id="metaCaption"></textarea>
+                <div class="actions">
+                    <button id="enrichMetadataButton">Enriquecer metadatos</button>
+                    <button id="saveMetadataButton" class="secondary">Guardar metadatos</button>
+                    <button id="validateMetadataButton" class="secondary">Validar metadatos</button>
+                    <button id="hashImagesButton" class="secondary">Calcular hash</button>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>6. Exportar</h2>
+                <div class="actions">
+                    <button id="exportCocoButton">Exportar COCO</button>
+                    <button id="exportYoloButton" class="secondary">Exportar YOLO-seg</button>
+                    <button id="auditButton" class="secondary">Generar informe de auditoría</button>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>Registro</h2>
+                <div class="log" id="corpusLog">Listo.</div>
+            </div>
+        </section>
+    </main>
+
+
+    <div id="particleMenu">
+        <div class="pm-id" id="particleMenuLabel"></div>
+        <button id="pmEditBtn">Editar</button>
+        <button id="pmRejectBtn" class="danger">Rechazar</button>
+        <button id="pmCloseBtn" class="secondary">Cerrar</button>
+    </div>
+    <script src="Echarts.js"></script>
+    <script src="render.js"></script>
+</body>
+
+</html>

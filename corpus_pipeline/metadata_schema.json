@@ -1,0 +1,26 @@
+{
+  "sources": {
+    "required_for_publication": ["source_id", "url", "license", "license_status"],
+    "fields": {
+      "authors": "Semicolon-separated author list",
+      "journal": "Journal, repository, or collection name",
+      "year": "Publication year",
+      "publisher": "Publisher or repository",
+      "license_url": "Canonical license URL when available",
+      "license_status": "accepted | missing | rejected_for_public_corpus",
+      "source_type": "article | zenodo_record | dataset | unknown"
+    }
+  },
+  "images": {
+    "required_for_publication": ["image_id", "source_id", "file_path", "source_url", "license", "file_sha256", "width", "height", "modality", "quality_status"],
+    "required_for_metrology": ["nm_per_px", "scale_status"],
+    "fields": {
+      "figure_label": "Figure number or label from source",
+      "panel_label": "Panel label within the figure",
+      "caption": "Source caption or user-entered description",
+      "quality_status": "ready | needs_review | rejected",
+      "scale_status": "confirmed | estimated | missing",
+      "metadata_status": "ready | needs_manual_review | blocked"
+    }
+  }
+}
