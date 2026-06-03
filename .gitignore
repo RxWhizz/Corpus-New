@@ -1,4 +1,27 @@
+# Electron build outputs
 node_modules/
 dist/
 squashfs-root/
+
+# Vendored libraries (ya estan en node_modules)
 Echarts.js
+
+# Outputs generados por la app
+measurements.json
+diameters.txt
+processed_image.jpg
+processed_*.jpg
+processed_*.png
+
+# Imagenes TIF de trabajo (archivos grandes de microscopio)
+*.tif
+!Examples/*.tif
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs
+*.log
+npm-debug.log*
