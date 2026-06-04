@@ -9,16 +9,25 @@ const corpusScripts = {
   curateImage: 'curate_images.py',
   calibrateImage: 'calibrate_images.py',
   exportDataset: 'export_dataset.py',
-  metadata: 'metadata.py'
+  metadata: 'metadata.py',
+  triageFigures: path.join('..', 'training', 'triage_pdf_figures.py'),
+  acceptTriageCandidate: 'accept_triage_candidate.py'
 };
 
 function pythonCandidates() {
   return [
     process.env.PYTHON ? { command: process.env.PYTHON, args: [] } : null,
-    { command: 'python3', args: [] },
     { command: 'python', args: [] },
+    { command: 'python3', args: [] },
     { command: 'py', args: ['-3'] }
   ].filter(Boolean);
+}
+
+function isRecoverablePythonAlias(stdout, stderr) {
+  const combined = `${stdout || ''}\n${stderr || ''}`.toLowerCase();
+  return combined.includes('python was not found') ||
+    combined.includes('microsoft store') ||
+    combined.includes('app execution aliases');
 }
 
 function runPythonRaw(script, args = []) {
@@ -55,6 +64,10 @@ function runPythonRaw(script, args = []) {
 
       pythonProcess.on('close', (code) => {
         if (failedToStart) {
+          return;
+        }
+        if (code !== 0 && isRecoverablePythonAlias(stdout, stderr) && index < candidates.length) {
+          tryNext(stderr || stdout);
           return;
         }
         resolve({ code, stdout, stderr });
@@ -101,7 +114,9 @@ function createWindow() {
   require('@electron/remote/main').initialize()  
   require('@electron/remote/main').enable(win.webContents)  
   win.loadFile('index.html');
-  win.webContents.openDevTools({ mode: 'bottom' });
+  if (process.env.CORPUS_OPEN_DEVTOOLS === '1') {
+    win.webContents.openDevTools({ mode: 'bottom' });
+  }
 }
 app.whenReady().then(createWindow);
 app.on('window-all-closed', () => {
@@ -120,6 +135,16 @@ ipcMain.on('process-image', async (event, {
   image,
   mode,
   shapePreset,
+  uiMode,
+  contrastStrategy,
+  manualThresholdMin,
+  manualThresholdMax,
+  minCircularity,
+  maxCircularity,
+  minElongation,
+  maxElongation,
+  includeHoles,
+  reviewView,
   scale,
   manualScalePx,
   manualScaleLine,
@@ -142,6 +167,16 @@ ipcMain.on('process-image', async (event, {
     '--image', image,
     '--mode', effectiveMode,
     '--shape-preset', shapePreset || 'generic',
+    '--ui-mode', uiMode || 'easy',
+    '--contrast-strategy', contrastStrategy || 'dark_particles',
+    '--manual-threshold-min', manualThresholdMin || 0,
+    '--manual-threshold-max', manualThresholdMax || 255,
+    '--min-circularity', minCircularity || 0,
+    '--max-circularity', maxCircularity || 1,
+    '--min-elongation', minElongation || 1,
+    '--max-elongation', maxElongation || 999,
+    '--include-holes', includeHoles === true ? 'true' : 'false',
+    '--review-view', reviewView || 'overlay',
     '--scale', scale,
     '--manual-scale-px', manualScalePx || 0,
     '--exclude-edges', excludeEdges === false ? 'false' : 'true',

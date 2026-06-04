@@ -279,6 +279,26 @@
             color: #1456a0;
         }
 
+        .advanced-only.hidden {
+            display: none;
+        }
+
+        .workflow-steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .workflow-step {
+            border: 1px solid #d9dee7;
+            border-radius: 6px;
+            background: #fbfcfe;
+            padding: 8px 10px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
         #result img {
             max-width: 100%;
             display: block;
@@ -377,7 +397,20 @@
             <div class="section">
                 <h2>Medición de Partículas</h2>
                 <div class="measurement-help" id="measurementHint"></div>
+                <div class="workflow-steps">
+                    <div class="workflow-step">1. Imagen</div>
+                    <div class="workflow-step">2. Tipo de muestra</div>
+                    <div class="workflow-step">3. Escala</div>
+                    <div class="workflow-step">4. Procesar y revisar</div>
+                </div>
                 <div class="grid">
+                    <div>
+                        <label for="uiMode">Flujo de trabajo</label>
+                        <select id="uiMode">
+                            <option value="easy">Easy: básico y guiado</option>
+                            <option value="advanced">Advanced: filtros y segmentación</option>
+                        </select>
+                    </div>
                     <div>
                         <label for="imageInput">Imagen</label>
                         <input type="file" id="imageInput" accept="image/*,.tif,.tiff">
@@ -387,6 +420,7 @@
                         <select id="shapePreset">
                             <option value="spheres">Esferas núcleo-corteza</option>
                             <option value="pellets">Pellets / varillas núcleo-corteza</option>
+                            <option value="decorated">Nanopartículas decoradas</option>
                             <option value="generic">Partículas genéricas</option>
                         </select>
                     </div>
@@ -419,8 +453,8 @@
                         <label for="excludeEdges">Excluir partículas en el borde</label>
                     </div>
                 </div>
-                <details class="advanced-settings">
-                    <summary>Rangos de radio avanzados</summary>
+                <details class="advanced-settings advanced-only">
+                    <summary>Particle Filters</summary>
                     <div class="grid">
                         <div>
                             <label for="auMinRadius">Radio mín. Au/Núcleo (nm)</label>
@@ -440,7 +474,55 @@
                         </div>
                         <div class="inline-check">
                             <input type="checkbox" id="watershed">
-                            <label for="watershed">Separar partículas en contacto (watershed)</label>
+                            <label for="watershed">Split touching round particles</label>
+                        </div>
+                        <div class="inline-check">
+                            <input type="checkbox" id="includeHoles">
+                            <label for="includeHoles">Incluir huecos internos</label>
+                        </div>
+                        <div>
+                            <label for="minCircularity">Circularidad mínima</label>
+                            <input type="number" id="minCircularity" min="0" max="1" step="0.01">
+                        </div>
+                        <div>
+                            <label for="maxCircularity">Circularidad máxima</label>
+                            <input type="number" id="maxCircularity" min="0" max="1" step="0.01">
+                        </div>
+                        <div>
+                            <label for="minElongation">Elongación mínima</label>
+                            <input type="number" id="minElongation" min="1" step="0.01">
+                        </div>
+                        <div>
+                            <label for="maxElongation">Elongación máxima</label>
+                            <input type="number" id="maxElongation" min="1" step="0.01">
+                        </div>
+                    </div>
+                </details>
+                <details class="advanced-settings advanced-only">
+                    <summary>Segmentation Assist</summary>
+                    <div class="grid">
+                        <div>
+                            <label for="contrastStrategy">Estrategia de contraste</label>
+                            <select id="contrastStrategy">
+                                <option value="dark_particles">Dark particles on bright background</option>
+                                <option value="bright_shells">Bright shells / low contrast carrier</option>
+                                <option value="manual_gray_range">Manual gray range</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="manualThresholdMin">Gray mínimo</label>
+                            <input type="number" id="manualThresholdMin" min="0" max="255" step="1">
+                        </div>
+                        <div>
+                            <label for="manualThresholdMax">Gray máximo</label>
+                            <input type="number" id="manualThresholdMax" min="0" max="255" step="1">
+                        </div>
+                        <div>
+                            <label for="reviewView">Review View</label>
+                            <select id="reviewView">
+                                <option value="overlay">Overlay outlines</option>
+                                <option value="numbered">Numbered objects</option>
+                            </select>
                         </div>
                     </div>
                 </details>
@@ -502,12 +584,32 @@
                 <div class="actions">
                     <button id="downloadAcceptedButton">Descargar aceptados</button>
                     <button id="extractFiguresButton" class="secondary">Extraer figuras</button>
+                    <button id="triageFiguresButton" class="secondary">Triage figuras</button>
                 </div>
                 <progress id="corpusProgress" max="1" style="display:none;width:100%;margin-top:10px;"></progress>
             </div>
 
             <div class="section">
                 <h2>3. Curación</h2>
+                <div class="grid">
+                    <div>
+                        <label for="triageFilter">Filtro de triage</label>
+                        <select id="triageFilter">
+                            <option value="all">Todos</option>
+                            <option value="tem">TEM</option>
+                            <option value="graph">Graficas</option>
+                            <option value="abstract_or_scheme">Abstracts / esquemas</option>
+                            <option value="mixed_figure">Figuras mixtas</option>
+                            <option value="needs_review">Needs review</option>
+                            <option value="tiles">Tiles TEM</option>
+                        </select>
+                    </div>
+                    <div>
+                        <button id="acceptTriageCandidateButton" class="secondary">Aceptar triage para CVAT</button>
+                        <div class="muted">Selecciona primero un crop o tile TEM del triage.</div>
+                    </div>
+                </div>
+                <div class="image-list" id="triageList" style="max-height:220px;margin:10px 0;"></div>
                 <div class="gallery">
                     <div>
                         <div class="image-list" id="imageList"></div>

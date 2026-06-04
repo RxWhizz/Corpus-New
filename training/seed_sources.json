@@ -1,0 +1,217 @@
+{
+  "target": "Au@SiO2 core-shell TEM instance segmentation",
+  "classes": ["Au_core", "SiO2_outer"],
+  "seed_papers": [
+    {
+      "doi": "10.1039/C6TB01659F",
+      "priority": 5,
+      "reason": "Au-SiO2 core-shell nanoparticles/nanorods with tunable silica shell thickness."
+    },
+    {
+      "doi": "10.1039/C9RA02543J",
+      "priority": 5,
+      "reason": "One-pot Au@SiO2 core-shell synthesis focused on shell thickness."
+    },
+    {
+      "doi": "10.3390/ma17102213",
+      "priority": 4,
+      "reason": "Open-access optimization of Au@SiO2 core-shell nanostructures."
+    },
+    {
+      "doi": "10.1186/s11671-024-04141-2",
+      "priority": 4,
+      "reason": "Open-access silica-coated gold nanoparticles; useful morphology variation."
+    },
+    {
+      "doi": "10.1021/acsomega.9b03716",
+      "priority": 4,
+      "reason": "Au and Au@SiO2 comparison; useful clean examples and controls."
+    }
+  ],
+  "local_pdf_sources": [
+    {
+      "file": "Examples/pdfs TEM/materials-17-02213-v2.pdf",
+      "title": "The Optimization of the One-Pot Synthesis of Au@SiO2 Core-Shell Nanostructures: Modification with Dansyl Group and Their Fluorescent Properties",
+      "doi": "10.3390/ma17102213",
+      "priority": 5,
+      "candidate_layer": "real_exact",
+      "training_use": "core_shell_v0",
+      "license_status": "needs_manual_review",
+      "notes": "Strong Au@SiO2 core-shell candidate; TEM figures with optimization of shell-forming route."
+    },
+    {
+      "file": "Examples/pdfs TEM/comparative-analysis-of-au-and-au-sio2-nanoparticle-protein-interactions-for-evaluation-as-platforms-in-theranostic.pdf",
+      "title": "Comparative Analysis of Au and Au@SiO2 Nanoparticle-Protein Interactions for Evaluation as Platforms in Theranostic Applications",
+      "doi": "10.1021/acsomega.9b03716",
+      "priority": 4,
+      "candidate_layer": "real_exact",
+      "training_use": "core_shell_v0",
+      "license_status": "needs_manual_review",
+      "notes": "Useful comparative Au vs Au@SiO2 examples; verify article reuse rights before public demo."
+    },
+    {
+      "file": "Examples/pdfs TEM/gold silica.pdf",
+      "title": "Synthesis of gold-silica core-shell nanoparticles by pulsed laser ablation in liquid and their physico-chemical properties towards photothermal cancer therapy",
+      "doi": "10.1039/c9nr07129f",
+      "priority": 4,
+      "candidate_layer": "real_exact",
+      "training_use": "core_shell_v0",
+      "license_status": "needs_manual_review",
+      "notes": "Core-shell PLAL route; likely valuable for real_exact if TEM figures are separable."
+    },
+    {
+      "file": "Examples/pdfs TEM/nanomaterials-16-00269-v2.pdf",
+      "title": "Tunable Response of Silica-Gold Nanoparticles for Improved Efficiency in Photothermal Therapy",
+      "doi": "10.3390/nano16040269",
+      "priority": 3,
+      "candidate_layer": "real_near",
+      "training_use": "core_shell_or_decorated_review",
+      "license_status": "needs_manual_review",
+      "notes": "Reported AuNP@SiO2-like morphology with thin silica shell; review figures before class assignment."
+    },
+    {
+      "file": "Examples/pdfs TEM/Highly_sensitive_near-infrared_SERS_nanoprobes_for.pdf",
+      "title": "Highly sensitive near-infrared SERS nanoprobes for in vivo imaging using gold-assembled silica nanoparticles with controllable nanogaps",
+      "doi": "10.1186/s12951-022-01327-7",
+      "priority": 4,
+      "candidate_layer": "real_near",
+      "training_use": "decorated_future",
+      "license_status": "needs_manual_review",
+      "notes": "SiO2@Au@Au decorated/assembled morphology; useful for decorated model, not core-shell v0."
+    },
+    {
+      "file": "Examples/pdfs TEM/Gol decoration.pdf",
+      "title": "Gold decoration of silica by decomposition of aqueous gold(iii) hydroxide at low temperatures",
+      "doi": "10.1039/c8ra01032c",
+      "priority": 4,
+      "candidate_layer": "real_near",
+      "training_use": "decorated_future",
+      "license_status": "needs_manual_review",
+      "notes": "Silica spheres decorated with AuNPs; good future Au_decoration/SiO2_carrier source."
+    },
+    {
+      "file": "Examples/pdfs TEM/Photothermal conversion of SiO2@Au nanoparticles mediated by surface morphology of gold cluster layer.pdf",
+      "title": "Photothermal conversion of SiO2@Au nanoparticles mediated by surface morphology of gold cluster layer",
+      "doi": "10.1039/d0ra06278b",
+      "priority": 4,
+      "candidate_layer": "real_near",
+      "training_use": "decorated_future",
+      "license_status": "needs_manual_review",
+      "notes": "SiO2@Au cluster-layer morphology; useful for decorated/coverage analysis."
+    },
+    {
+      "file": "Examples/pdfs TEM/s42452-021-04456-0.pdf",
+      "title": "Simple synthesis of gold-decorated silica nanoparticles by in situ precipitation method with new plasmonic properties",
+      "doi": "10.1007/s42452-021-04456-0",
+      "priority": 4,
+      "candidate_layer": "real_near",
+      "training_use": "decorated_future",
+      "license_status": "needs_manual_review",
+      "notes": "Inhomogeneous/discontinuous Au over silica; useful for decorated future class, not core-shell v0."
+    },
+    {
+      "file": "Examples/pdfs TEM/materials-15-07470-v2.pdf",
+      "title": "Fabrication and Characterization of Au-Decorated MCM-41 Mesoporous Spheres Using Laser-Ablation Technique",
+      "doi": "10.3390/ma15217470",
+      "priority": 3,
+      "candidate_layer": "real_near",
+      "training_use": "decorated_future",
+      "license_status": "needs_manual_review",
+      "notes": "Au-decorated mesoporous spheres; useful as support/decorated morphology."
+    },
+    {
+      "file": "Examples/pdfs TEM/nanomaterials-13-02156.pdf",
+      "title": "Preparation of SiO2@Au Nanoparticle Photonic Crystal Array as Surface-Enhanced Raman Scattering (SERS) Substrate",
+      "doi": "10.3390/nano13152156",
+      "priority": 3,
+      "candidate_layer": "real_near",
+      "training_use": "decorated_future",
+      "license_status": "needs_manual_review",
+      "notes": "Manufacturing sequence for SiO2, Au seeds, and SiO2@Au; useful future decorated source."
+    },
+    {
+      "file": "Examples/pdfs TEM/nanomaterials-10-01996.pdf",
+      "title": "Interface-Induced Near-Infrared Response of Gold-Silica Hybrid Nanoparticles Antennas",
+      "doi": "10.3390/nano10101996",
+      "priority": 3,
+      "candidate_layer": "real_near",
+      "training_use": "decorated_future",
+      "license_status": "needs_manual_review",
+      "notes": "HR-STEM/EELS interface examples; useful for near-field/decorated morphology review."
+    },
+    {
+      "file": "Examples/pdfs TEM/s41598-021-82242-z.pdf",
+      "title": "Gold nanoparticles decorated biguanidine modified mesoporous silica KIT-5 as recoverable heterogeneous catalyst for the reductive degradation of environmental contaminants",
+      "doi": "10.1038/s41598-021-82242-z",
+      "priority": 2,
+      "candidate_layer": "real_near",
+      "training_use": "support_decorated_negative",
+      "license_status": "needs_manual_review",
+      "notes": "KIT-5 mesoporous support with dispersed Au; near/negative for decorated, not core-shell v0."
+    },
+    {
+      "file": "Examples/pdfs TEM/gases.pdf",
+      "title": "On-chip monitoring of toxic gases: capture and label-free SERS detection with plasmonic mesoporous sorbents",
+      "doi": "10.1039/d3lc00136a",
+      "priority": 2,
+      "candidate_layer": "real_near",
+      "training_use": "support_decorated_negative",
+      "license_status": "needs_manual_review",
+      "notes": "Mesoporous plasmonic sorbents; useful as related/negative morphology."
+    },
+    {
+      "file": "Examples/pdfs TEM/gold.pdf",
+      "title": "A gold nanoparticle-intercalated mesoporous silica-based nanozyme for the selective colorimetric detection of dopamine",
+      "doi": "10.1039/c9na00508k",
+      "priority": 2,
+      "candidate_layer": "real_near",
+      "training_use": "support_decorated_negative",
+      "license_status": "needs_manual_review",
+      "notes": "Au inside/near mesoporous silica; related but not core-shell."
+    },
+    {
+      "file": "Examples/pdfs TEM/01NanosphericalSurface-SupportedSeededGrowthofAu.pdf",
+      "title": "Nanospherical Surface-Supported Seeded Growth of Au Nanowires: Investigation on a New Growth Mechanism and High-Performance Hydrogen Peroxide Sensors",
+      "doi": "10.1002/ppsc.201400200",
+      "priority": 1,
+      "candidate_layer": "real_near",
+      "training_use": "exclude_or_negative",
+      "license_status": "needs_manual_review",
+      "notes": "Au nanowire growth on spherical support; likely outside Au@SiO2 core-shell v0."
+    }
+  ],
+  "related_datasets": [
+    {
+      "name": "EMPS Electron Microscopy Particle Segmentation",
+      "use": "single-class EM particle segmentation pretraining for detector/separator",
+      "url": "https://github.com/by256/emps",
+      "license": "CC BY 4.0 / MIT repository; verify before redistribution",
+      "redistribution_caution": false
+    },
+    {
+      "name": "TEMExtraction",
+      "use": "figure/scale workflows and related TEM segmentation transfer",
+      "redistribution_caution": true
+    },
+    {
+      "name": "BAM Automatic SEM Image Segmentation",
+      "use": "overlap, aggregation, and synthetic EM workflow inspiration",
+      "redistribution_caution": true
+    },
+    {
+      "name": "EMcopilot",
+      "use": "synthetic EM and self-supervised segmentation workflows",
+      "redistribution_caution": false
+    },
+    {
+      "name": "Nanowire TEM morphology dataset",
+      "use": "related TEM segmentation transfer",
+      "redistribution_caution": false
+    },
+    {
+      "name": "Illinois Patchy Nanoparticles",
+      "use": "related nanoparticle imagery and metadata only",
+      "redistribution_caution": false
+    }
+  ]
+}

@@ -3,6 +3,11 @@ node_modules/
 dist/
 squashfs-root/
 
+# Generated datasets and experiment outputs
+data/
+reports/
+runs/
+
 # Vendored libraries (ya estan en node_modules)
 Echarts.js
 
@@ -16,6 +21,9 @@ processed_*.png
 # Imagenes TIF de trabajo (archivos grandes de microscopio)
 *.tif
 !Examples/*.tif
+
+# Local paper PDFs for manual curation; keep manifests, not PDFs, in Git
+Examples/pdfs TEM/
 
 # Python cache
 __pycache__/

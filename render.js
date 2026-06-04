@@ -36,6 +36,16 @@ const manualMeasureClear   = document.getElementById('manualMeasureClear');
 const imageInput = document.getElementById('imageInput');
 const measurementMode = document.getElementById('measurementMode');
 const shapePreset = document.getElementById('shapePreset');
+const uiMode = document.getElementById('uiMode');
+const contrastStrategy = document.getElementById('contrastStrategy');
+const manualThresholdMin = document.getElementById('manualThresholdMin');
+const manualThresholdMax = document.getElementById('manualThresholdMax');
+const minCircularity = document.getElementById('minCircularity');
+const maxCircularity = document.getElementById('maxCircularity');
+const minElongation = document.getElementById('minElongation');
+const maxElongation = document.getElementById('maxElongation');
+const includeHoles = document.getElementById('includeHoles');
+const reviewView = document.getElementById('reviewView');
 const auMinRadiusInput = document.getElementById('auMinRadius');
 const auMaxRadiusInput = document.getElementById('auMaxRadius');
 const sio2MinRadiusInput = document.getElementById('sio2MinRadius');
@@ -398,6 +408,11 @@ const measurementPresets = {
         auMax: 18,
         sio2Min: 18,
         sio2Max: 35,
+        minCircularity: 0.45,
+        maxCircularity: 1,
+        minElongation: 1,
+        maxElongation: 1.8,
+        contrastStrategy: 'dark_particles',
         watershed: true,
         hint: 'Para esferas núcleo-corteza. Empareja los núcleos Au (rojo) con los portadores SiO2 (cian) y reporta diámetro interno, externo y espesor de corteza.'
     },
@@ -409,8 +424,29 @@ const measurementPresets = {
         auMax: 35,
         sio2Min: 30,
         sio2Max: 45,
+        minCircularity: 0.15,
+        maxCircularity: 1,
+        minElongation: 1.4,
+        maxElongation: 8,
+        contrastStrategy: 'dark_particles',
         watershed: false,
         hint: 'Para varillas o pellets. Mide el eje largo del núcleo Au oscuro y el eje largo del portador SiO2 circundante.'
+    },
+    decorated: {
+        mode: 'both',
+        scale: 100,
+        binWidth: '',
+        auMin: 1,
+        auMax: 15,
+        sio2Min: 60,
+        sio2Max: 160,
+        minCircularity: 0.15,
+        maxCircularity: 1,
+        minElongation: 1,
+        maxElongation: 4,
+        contrastStrategy: 'dark_particles',
+        watershed: true,
+        hint: 'Para nanopartículas SiO2 decoradas con Au. Detecta decoraciones oscuras pequeñas y el portador externo para estimar tamaño, conteo de decoraciones y densidad aproximada.'
     },
     generic: {
         mode: 'both',
@@ -420,6 +456,11 @@ const measurementPresets = {
         auMax: 50,
         sio2Min: 20,
         sio2Max: 500,
+        minCircularity: 0,
+        maxCircularity: 1,
+        minElongation: 1,
+        maxElongation: 999,
+        contrastStrategy: 'dark_particles',
         watershed: true,
         hint: 'Fallback contour detector for mixed particles. Use it when the sample is not clearly spherical or rod-like.'
     }
@@ -431,6 +472,21 @@ function parsePositiveNumber(input, label) {
         throw new Error(`${label} must be greater than 0.`);
     }
     return value;
+}
+
+function parseNumberWithDefault(input, fallback) {
+    const value = parseFloat(input.value);
+    return Number.isFinite(value) ? value : fallback;
+}
+
+function setAdvancedVisibility() {
+    const advanced = uiMode && uiMode.value === 'advanced';
+    document.querySelectorAll('.advanced-only').forEach((element) => {
+        element.classList.toggle('hidden', !advanced);
+        if (!advanced && element.tagName === 'DETAILS') {
+            element.open = false;
+        }
+    });
 }
 
 function clearMeasurementResults() {
@@ -558,10 +614,10 @@ function loadScalePreview(filePath) {
 
 function canvasEventToImagePoint(event) {
     const rect = scaleCanvas.getBoundingClientRect();
-    // Use offsetX/offsetY which are already relative to the canvas element,
-    // unaffected by the parent wrap's scroll position.
-    const canvasX = event.offsetX;
-    const canvasY = event.offsetY;
+    const visibleScaleX = scaleCanvas.width / Math.max(rect.width, 1);
+    const visibleScaleY = scaleCanvas.height / Math.max(rect.height, 1);
+    const canvasX = (event.clientX - rect.left) * visibleScaleX;
+    const canvasY = (event.clientY - rect.top) * visibleScaleY;
     return {
         x: Math.max(0, Math.min(scalePreviewImage.naturalWidth, canvasX / scaleCanvasScale)),
         y: Math.max(0, Math.min(scalePreviewImage.naturalHeight, canvasY / scaleCanvasScale))
@@ -590,12 +646,22 @@ function applyRecommendedSettings(forceMode = true) {
     auMaxRadiusInput.value = preset.auMax;
     sio2MinRadiusInput.value = preset.sio2Min;
     sio2MaxRadiusInput.value = preset.sio2Max;
+    minCircularity.value = preset.minCircularity;
+    maxCircularity.value = preset.maxCircularity;
+    minElongation.value = preset.minElongation;
+    maxElongation.value = preset.maxElongation;
+    contrastStrategy.value = preset.contrastStrategy;
+    manualThresholdMin.value = 0;
+    manualThresholdMax.value = 120;
+    includeHoles.checked = false;
+    reviewView.value = 'overlay';
     manualScalePx.value = '';
     resetManualScaleLine(true);
     excludeEdges.checked = true;
     watershed.checked = preset.watershed;
     measurementHint.textContent = preset.hint;
     updateModeInputState();
+    setAdvancedVisibility();
 }
 
 function setProcessing(isProcessing) {
@@ -634,6 +700,29 @@ function summarizeMeasurements(payload) {
 
     const scaleCandidates = payload.scale_candidates || [];
     const selectedScale = payload.selected_scale || {};
+    const warnings = payload.warnings || [];
+    const normality = payload.normality_report || {};
+    const decoratedMetrics = payload.decorated_particle_metrics || null;
+    const warningMetrics = warnings.length
+        ? `<div class="metric"><strong>${warnings.length}</strong>${warnings.map(escapeHtml).join('<br>')}</div>`
+        : '';
+    const normalityMetrics = Object.entries(normality).slice(0, 3).map(([name, stats]) => `
+        <div class="metric">
+            <strong>${stats.n || 0}</strong>
+            ${escapeHtml(name)}<br>
+            ${escapeHtml(stats.normality_hint || 'not evaluated')}
+        </div>
+    `).join('');
+    const decoratedMetricHtml = decoratedMetrics ? `
+        <div class="metric">
+            <strong>${Number(decoratedMetrics.mean_decorations_per_carrier || 0).toFixed(2)}</strong>
+            decoraciones / carrier
+        </div>
+        <div class="metric">
+            <strong>${Number(decoratedMetrics.mean_decoration_density_per_1000_nm2 || 0).toFixed(2)}</strong>
+            decoraciones / 1000 nm²
+        </div>
+    ` : '';
     const classMetrics = entries.map(([className, stats]) => `
         <div class="metric">
             <strong>${stats.count || 0}</strong>
@@ -660,7 +749,10 @@ function summarizeMeasurements(payload) {
             separaciones watershed<br>
             ${escapeHtml(payload.separation_method || 'contour/hough')}
         </div>
+        ${warningMetrics}
+        ${decoratedMetricHtml}
         ${classMetrics}
+        ${normalityMetrics}
         <div class="metric">
             <strong>${Number(payload.nm_per_px || 0).toPrecision(5)}</strong>
             unidad de escala / px
@@ -722,16 +814,19 @@ function measurementSeries(payload) {
             {
                 name: 'Diámetro interno',
                 color: 'rgba(220, 38, 38, 0.72)',
+                unit: 'nm',
                 values: objects.map((row) => Number(row.inner_major_axis)).filter((value) => value > 0)
             },
             {
                 name: 'Diámetro externo',
                 color: 'rgba(14, 165, 233, 0.72)',
+                unit: 'nm',
                 values: objects.map((row) => Number(row.outer_major_axis)).filter((value) => value > 0)
             },
             {
                 name: 'Espesor de corteza',
                 color: 'rgba(245, 158, 11, 0.72)',
+                unit: 'nm',
                 values: objects.map((row) => Number(row.shell_thickness_estimate)).filter((value) => value > 0)
             }
         ];
@@ -741,17 +836,44 @@ function measurementSeries(payload) {
             {
                 name: 'Eje mayor interno',
                 color: 'rgba(220, 38, 38, 0.72)',
+                unit: 'nm',
                 values: objects.map((row) => Number(row.inner_major_axis)).filter((value) => value > 0)
             },
             {
                 name: 'Eje mayor externo',
                 color: 'rgba(14, 165, 233, 0.72)',
+                unit: 'nm',
                 values: objects.map((row) => Number(row.outer_major_axis)).filter((value) => value > 0)
             },
             {
                 name: 'Eje menor externo',
                 color: 'rgba(16, 185, 129, 0.72)',
+                unit: 'nm',
                 values: objects.map((row) => Number(row.outer_minor_axis)).filter((value) => value > 0)
+            }
+        ];
+    }
+    if (payload.shape_preset === 'decorated') {
+        const objects = payload.measurements || [];
+        const flat = payload.class_measurements || [];
+        return [
+            {
+                name: 'Decoraciones Au',
+                color: 'rgba(220, 38, 38, 0.72)',
+                unit: 'nm',
+                values: flat.filter((row) => row.class === 'Au_decorations').map((row) => Number(row.diameter))
+            },
+            {
+                name: 'Carrier SiO2 externo',
+                color: 'rgba(14, 165, 233, 0.72)',
+                unit: 'nm',
+                values: flat.filter((row) => row.class === 'SiO2_carrier').map((row) => Number(row.diameter))
+            },
+            {
+                name: 'Densidad de decoraciones',
+                color: 'rgba(16, 185, 129, 0.72)',
+                unit: 'decoraciones / 1000 nm2',
+                values: objects.map((row) => Number(row.decoration_density_per_1000_nm2)).filter((value) => value > 0)
             }
         ];
     }
@@ -762,6 +884,7 @@ function measurementSeries(payload) {
         .map((className) => ({
             name: classLabel(className),
             color: classColor(className),
+            unit: 'nm',
             values: flat.filter((row) => row.class === className).map((row) => Number(row.diameter))
         }));
 }
@@ -808,6 +931,7 @@ function renderMeasurementChart(payload) {
         // Auto bin width unless user specified one
         const binWidth = (userBw > 0) ? userBw : autoBinWidth(values);
         if (!(userBw > 0) && binInput) binInput.placeholder = `auto: ${binWidth}`;
+        const unit = def.unit || 'nm';
 
         const rawMin  = Math.min(...values);
         const rawMax  = Math.max(...values);
@@ -884,7 +1008,7 @@ function renderMeasurementChart(payload) {
         c.setOption({
             title: {
                 text: `${def.name} — Distribución de tamaños`,
-                subtext: `n = ${n}    μ = ${mean.toFixed(2)} nm    σ = ${std.toFixed(2)} nm    bin = ${binWidth} nm`,
+                subtext: `n = ${n}    μ = ${mean.toFixed(2)} ${unit}    σ = ${std.toFixed(2)} ${unit}    bin = ${binWidth} ${unit}`,
                 left: 'center',
                 top: 8,
                 subtextStyle: { fontSize: 12, color: '#555' }
@@ -896,7 +1020,7 @@ function renderMeasurementChart(payload) {
                 {
                     type: 'category',
                     data: labels,
-                    name: 'Diámetro (nm)',
+                    name: unit === 'nm' ? 'Diámetro (nm)' : unit,
                     nameLocation: 'middle',
                     nameGap: 30
                 },
@@ -975,7 +1099,7 @@ function saveMeasurementsJson() {
     try {
         fs.writeFileSync(
             currentPayload.measurements_path,
-            JSON.stringify(currentPayload.measurements, null, 2)
+            JSON.stringify(currentPayload, null, 2)
         );
     } catch (e) {
         console.error('Could not save measurements.json:', e);
@@ -1002,6 +1126,7 @@ function exportCsv() {
         'object_id', 'review_status', 'pair_status', 'confidence_score',
         'inner_major_axis', 'inner_minor_axis', 'outer_major_axis', 'outer_minor_axis',
         'equivalent_diameter', 'shell_thickness_estimate', 'inner_outer_ratio',
+        'decoration_count', 'decoration_density_per_1000_nm2',
         'center_x', 'center_y', 'flags'
     ];
 
@@ -1105,6 +1230,7 @@ function renderMeasurementDetails(payload) {
         'review_status':          r => r.review_status,
         'inner_major_axis':       r => Number(r.inner_major_axis) || 0,
         'outer_major_axis':       r => Number(r.outer_major_axis) || 0,
+        'decoration_count':       r => Number(r.decoration_count) || 0,
         'shell_thickness_estimate': r => Number(r.shell_thickness_estimate) || 0,
         'confidence_score':       r => Number(r.confidence_score) || 0,
     };
@@ -1135,6 +1261,7 @@ function renderMeasurementDetails(payload) {
                     <th style="${thStyle}" ${thClick('review_status')}>Estado${arrow('review_status')}</th>
                     <th style="${thStyle}" ${thClick('inner_major_axis')}>Eje mayor interno (nm)${arrow('inner_major_axis')}</th>
                     <th style="${thStyle}" ${thClick('outer_major_axis')}>Eje mayor externo (nm)${arrow('outer_major_axis')}</th>
+                    <th style="${thStyle}" ${thClick('decoration_count')}>Decoraciones${arrow('decoration_count')}</th>
                     <th style="${thStyle}" ${thClick('shell_thickness_estimate')}>Corteza${arrow('shell_thickness_estimate')}</th>
                     <th style="${thStyle}" ${thClick('confidence_score')}>Confianza${arrow('confidence_score')}</th>
                     <th>Indicadores</th>
@@ -1163,6 +1290,7 @@ function renderMeasurementDetails(payload) {
                             <td><input id="edit-outer-${id}" type="number" step="0.01" min="0"
                                 value="${Number(row.outer_major_axis || 0).toFixed(3)}"
                                 style="width:90px"></td>
+                            <td>${Number(row.decoration_count || 0)}</td>
                             <td>${formatMeasurement(row.shell_thickness_estimate)}</td>
                             <td>${Number(row.confidence_score || 0).toFixed(2)}</td>
                             <td>${escapeHtml((row.flags || []).join(', '))}</td>
@@ -1177,6 +1305,7 @@ function renderMeasurementDetails(payload) {
                         <td>${statusBadge} / ${escapeHtml(row.pair_status)}</td>
                         <td>${formatMeasurement(row.inner_major_axis)}</td>
                         <td>${formatMeasurement(row.outer_major_axis)}</td>
+                        <td>${Number(row.decoration_count || 0)}</td>
                         <td>${formatMeasurement(row.shell_thickness_estimate)}</td>
                         <td>${Number(row.confidence_score || 0).toFixed(2)}</td>
                         <td>${escapeHtml((row.flags || []).join(', '))}</td>
@@ -1225,6 +1354,7 @@ imageInput.addEventListener('change', (event) => {
 
 measurementMode.addEventListener('change', updateModeInputState);
 shapePreset.addEventListener('change', () => applyRecommendedSettings(true));
+uiMode.addEventListener('change', setAdvancedVisibility);
 recommendedSettingsButton.addEventListener('click', () => applyRecommendedSettings(true));
 markScaleLineButton.addEventListener('click', () => {
     if (!scalePreviewImage) {
@@ -1301,6 +1431,16 @@ processButton.addEventListener('click', () => {
             image,
             mode,
             shapePreset: preset,
+            uiMode: uiMode.value,
+            contrastStrategy: contrastStrategy.value,
+            manualThresholdMin: parseNumberWithDefault(manualThresholdMin, 0),
+            manualThresholdMax: parseNumberWithDefault(manualThresholdMax, 255),
+            minCircularity: parseNumberWithDefault(minCircularity, 0),
+            maxCircularity: parseNumberWithDefault(maxCircularity, 1),
+            minElongation: parseNumberWithDefault(minElongation, 1),
+            maxElongation: parseNumberWithDefault(maxElongation, 999),
+            includeHoles: includeHoles.checked,
+            reviewView: reviewView.value,
             scale,
             manualScalePx: Number.isFinite(manualScalePxValue) && manualScalePxValue > 0 ? manualScalePxValue : 0,
             manualScaleLine,
@@ -1354,6 +1494,8 @@ const corpusLog = document.getElementById('corpusLog');
 const corpusProgress = document.getElementById('corpusProgress');
 const sourcesTable = document.getElementById('sourcesTable');
 const imageList = document.getElementById('imageList');
+const triageFilter = document.getElementById('triageFilter');
+const triageList = document.getElementById('triageList');
 const corpusPreview = document.getElementById('corpusPreview');
 const curationModality = document.getElementById('curationModality');
 const curationLicense = document.getElementById('curationLicense');
@@ -1371,6 +1513,8 @@ const metaCaption = document.getElementById('metaCaption');
 let corpusState = { sources: [], images: [], summary: {} };
 let selectedImage = null;
 let selectedSource = null;
+let selectedTriagePath = null;
+let selectedTriageRow = null;
 
 function setLog(message, payload) {
     const detail = payload ? `\n${JSON.stringify(payload, null, 2)}` : '';
@@ -1411,6 +1555,8 @@ function renderSummary() {
         ['Calibrated', summary.calibrated || 0],
         ['Metadata Ready', summary.metadataReadyImages || 0],
         ['Missing SHA', summary.imagesMissingChecksum || 0],
+        ['Triage TEM', summary.triageTem || 0],
+        ['Triage Tiles', summary.triageTiles || 0],
     ];
     corpusSummary.innerHTML = metrics.map(([label, value]) => (
         `<div class="metric"><strong>${value}</strong>${label}</div>`
@@ -1492,6 +1638,60 @@ function renderImages() {
     });
 }
 
+function triageDisplayPath(row) {
+    return row.tile_path || row.crop_path || row.image_path || '';
+}
+
+function renderTriageRows() {
+    if (!triageList) {
+        return;
+    }
+    const rows = corpusState.triageRows || [];
+    if (!rows.length) {
+        triageList.innerHTML = '<p style="padding: 10px;">No triage manifest yet. Run Triage figuras after extracting PDF figures.</p>';
+        return;
+    }
+    const filterValue = triageFilter ? triageFilter.value : 'all';
+    const filtered = rows.filter((row) => {
+        if (filterValue === 'all') return true;
+        if (filterValue === 'tiles') return Boolean(row.tile_path);
+        return row.classification === filterValue;
+    });
+    if (!filtered.length) {
+        triageList.innerHTML = '<p style="padding: 10px;">No triage rows match this filter.</p>';
+        return;
+    }
+    triageList.innerHTML = filtered.slice(0, 300).map((row, index) => {
+        const displayPath = triageDisplayPath(row);
+        const active = selectedTriagePath && selectedTriagePath === displayPath ? ' active' : '';
+        const score = Number.parseFloat(row.confidence || '0');
+        const badgeText = row.tile_path ? 'tile' : (row.panel_label ? `panel ${row.panel_label}` : 'figure');
+        return `
+            <button class="image-item${active}" data-triage-index="${index}" data-path="${escapeHtml(displayPath)}">
+                <strong>${escapeHtml(row.classification || 'needs_review')}</strong>
+                <span class="badge">${escapeHtml(badgeText)}</span><br>
+                conf ${Number.isFinite(score) ? score.toFixed(2) : '0.00'} | ${escapeHtml(row.review_status || '')}<br>
+                ${escapeHtml(row.source_pdf || '')} page ${escapeHtml(row.page || '?')}<br>
+                <span class="muted">${escapeHtml(row.reason || '')}</span>
+            </button>
+        `;
+    }).join('');
+    triageList.querySelectorAll('.image-item').forEach((button) => {
+        button.addEventListener('click', () => {
+            selectedTriageRow = filtered[Number(button.dataset.triageIndex)] || null;
+            selectedTriagePath = button.dataset.path || '';
+            selectedImage = null;
+            selectedSource = null;
+            renderImages();
+            renderTriageRows();
+            if (selectedTriagePath) {
+                corpusPreview.src = fileUrl(selectedTriagePath);
+            }
+            renderMetadata();
+        });
+    });
+}
+
 function badge(label, type) {
     return `<span class="badge ${type || ''}">${escapeHtml(label)}</span>`;
 }
@@ -1536,6 +1736,7 @@ function renderCorpusState() {
     renderSummary();
     renderSources();
     renderImages();
+    renderTriageRows();
     if (selectedImage) {
         selectedImage = corpusState.images.find((imageRow) => imageRow.image_id === selectedImage.image_id) || null;
         selectedSource = selectedImage ? corpusState.sources.find((sourceRow) => sourceRow.source_id === selectedImage.source_id) || null : selectedSource;
@@ -1580,6 +1781,36 @@ document.getElementById('downloadAcceptedButton').addEventListener('click', () =
 document.getElementById('extractFiguresButton').addEventListener('click', () => {
     sendCorpusCommand('extractFigures');
 });
+
+document.getElementById('triageFiguresButton').addEventListener('click', () => {
+    sendCorpusCommand('triageFigures', ['--clean']);
+});
+
+document.getElementById('acceptTriageCandidateButton').addEventListener('click', () => {
+    if (!selectedTriageRow) {
+        setLog('Select a triage row first.');
+        return;
+    }
+    const candidatePath = triageDisplayPath(selectedTriageRow);
+    if (!candidatePath) {
+        setLog('Selected triage row has no usable crop or tile path.');
+        return;
+    }
+    if (selectedTriageRow.classification !== 'tem') {
+        setLog('Only TEM triage rows should be accepted for CVAT candidates.');
+        return;
+    }
+    sendCorpusCommand('acceptTriageCandidate', [
+        '--path', candidatePath,
+        '--source-pdf', selectedTriageRow.source_pdf || '',
+        '--page', selectedTriageRow.page || '',
+        '--panel-label', selectedTriageRow.panel_label || '',
+    ]);
+});
+
+if (triageFilter) {
+    triageFilter.addEventListener('change', renderTriageRows);
+}
 
 function updateCuration(status) {
     if (!selectedImage) {
@@ -1685,4 +1916,3 @@ ipcRenderer.on('corpus-result', (event, result) => {
         sendCorpusCommand('status');
     }
 });
-

@@ -1,147 +1,170 @@
 # Corpus
-Corpus is a desktop GUI for building curated TEM nanoparticle datasets and measuring particle size distributions. It combines a public-corpus workflow for Au@SiO2 metadata/scraping with the original particle measurement tools for microscopy images.
 
-## Description
-Corpus uses Electron as the frontend frame and Python as the backend language. Its measurement mechanism is based on OpenCV, including image processing algorithms and statistical modeling techniques. The main code can be divided by 4 steps: 
-1. Extract a plotting scale from the scaled image, or use the GUI to draw the scale line manually.
-2. Balance the image's lightness for more accurate recognition.
-3. Apply algorithms for the image adjustment.
-4. Draw the coutours of the nanoparticles and collect the diameters
+Corpus is an open-source desktop GUI for curated TEM nanoparticle datasets and lightweight non-AI metrology. It is built with Electron for the interface and Python/OpenCV for image processing.
 
-It is important to note that the accuracy of the results depends on the quality of the input graph. Therefore, it is recommended to ensure high-resolution and well-defined images for optimal analysis. Additionally, users have the option to customize various parameters.
+The project is focused on practical TEM curation: source metadata, image review, manual scale calibration, reproducible measurement settings, overlays, histograms, Gaussian reference curves, and export-friendly measurement metadata. It does not replace expert review, CVAT/Label Studio annotation, or AI segmentation in ambiguous images.
 
-Furthermore, when the object is very large (just one in the image), we can accurately measure its diameter (the scale should be black though). This code is Diameter-Measurement.py, simple but useful. And you can just enter the folder's name, this program will automatically process every image and export the data to output.xlsx
+## Features
 
-## Installation
-- Install npm [Download npm](https://nodejs.org)
+- Manual scale-line calibration from the printed scale bar.
+- Shape presets for:
+  - Core-shell spheres
+  - Core-shell rods / pellets
+  - Decorated nanoparticles
+  - Generic TEM particles
+- Class-aware non-AI measurement for Au decorations and SiO2 carriers.
+- Watershed separation for touching round particles.
+- Segmentation Assist for dark particles, bright shells, and manual gray ranges.
+- Particle Filters for radius, circularity, elongation, edge exclusion, and hole handling.
+- Measurement Basket for reviewing, editing, rejecting, and exporting detections.
+- Summary reports with counts, means, standard deviations, histogram data, Gaussian reference curves, warnings, and settings in `measurements.json`.
+- Corpus Builder tools for curated public metadata and dataset preparation.
 
-- Open cmd in the root dir:
+## Install on Windows
 
-    npm install electron
+Install Node.js LTS from [nodejs.org](https://nodejs.org/). Install Python 3.10+ from [python.org](https://www.python.org/downloads/windows/) and make sure it is available as `python` or set `PYTHON` explicitly.
 
-    npm install echart
+```powershell
+cd "C:\Users\LUIS\Documents\GitHub\Corpus-New"
+npm.cmd install
+python -m pip install opencv-python numpy pillow requests pandas matplotlib
+npm.cmd run start
+```
 
-    npm run start
+If PowerShell blocks `npm.ps1`, use `npm.cmd` as shown above.
 
-    Relevant Doc: [Building your First App](https://www.electronjs.org/docs/latest/tutorial/tutorial-first-app)
+If Python is installed in a custom path:
 
-- Packages for Python:
+```powershell
+$env:PYTHON="C:\Path\To\python.exe"
+npm.cmd run start
+```
 
-    pip install opencv-python numpy
-
-    The measurement backend uses `cv2` and `numpy`.
-
-## Ubuntu install and build
-The repository includes a portable Ubuntu/Linux x64 build at `dist/Corpus-1.0.0-linux-x64.tar.gz`. The archive is stored with Git LFS because it is larger than GitHub's regular file limit.
-
-### Use the prebuilt Ubuntu package
-Install runtime dependencies:
+## Install on Ubuntu
 
 ```bash
 sudo apt update
-sudo apt install -y git git-lfs python3 python3-pip libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils libatspi2.0-0 libuuid1 libsecret-1-0
-python3 -m pip install --user opencv-python numpy pillow requests
+sudo apt install -y nodejs npm python3 python3-pip git \
+  libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 \
+  xdg-utils libatspi2.0-0 libuuid1 libsecret-1-0
+
+git clone https://github.com/RxWhizz/Corpus-New.git
+cd Corpus-New
+npm install
+python3 -m pip install --user opencv-python numpy pillow requests pandas matplotlib
+PYTHON=python3 npm run start
 ```
 
-Clone with Git LFS and run the app:
+## Build on Ubuntu
+
+The repository stays source-only. Build outputs are generated locally under `dist/` and should be attached to GitHub Releases, not committed to Git.
 
 ```bash
-git lfs install
-git clone https://github.com/RxWhizz/Corpus.git
-cd Corpus
-tar -xzf dist/Corpus-1.0.0-linux-x64.tar.gz
-cd linux-unpacked
-PYTHON=python3 ./corpus
-```
-
-If Ubuntu blocks the executable bit after copying the archive, run:
-
-```bash
-chmod +x corpus
-PYTHON=python3 ./corpus
-```
-
-### Build como AppImage (recomendado)
-
-Un AppImage es un ejecutable único y portable: no requiere instalación y funciona en cualquier Ubuntu moderno.
-
-```bash
-git clone https://github.com/RxWhizz/Corpus.git
-cd Corpus
+git clone https://github.com/RxWhizz/Corpus-New.git
+cd Corpus-New
 bash build-ubuntu.sh
 ```
 
-El script instala automáticamente todas las dependencias del sistema y Python, compila el proyecto y deja el binario listo:
-
-```text
-dist/Corpus-1.0.0-linux-x64.AppImage
-```
-
-Ejecutar con:
+Run the generated AppImage:
 
 ```bash
-env -u ELECTRON_RUN_AS_NODE PYTHON=python3 ./dist/Corpus-1.0.0.AppImage
+env -u ELECTRON_RUN_AS_NODE PYTHON=python3 ./dist/*.AppImage
 ```
 
-> **Nota:** Si lanzas desde un terminal de VSCode, es necesario `env -u ELECTRON_RUN_AS_NODE` porque VSCode establece esa variable para sus propios procesos internos. Desde un terminal externo no hace falta.
+`env -u ELECTRON_RUN_AS_NODE` is useful when launching from VSCode terminals, which may set that variable for internal Electron processes.
 
-### Build del paquete portable (tarball)
+## Quick Tutorial
 
-Instalar dependencias de compilación:
+1. Open `Particle Measurement`.
+2. Choose `Easy` for the guided workflow.
+3. Load a TEM image.
+4. Select the sample type:
+   - `Core-shell spheres` for round Au/SiO2 objects.
+   - `Core-shell rods / pellets` for elongated particles.
+   - `Decorated nanoparticles` for SiO2 carriers decorated with small Au particles.
+   - `Generic TEM particles` when the sample does not match the other presets.
+5. Enter the printed scale length in nm.
+6. Click `Mark Scale Line` and mark the two ends of the printed scale bar.
+7. Click `Process Image`.
+8. Review the overlay and Measurement Basket. Edit or reject questionable detections.
+9. Export CSV or use `measurements.json` for traceable downstream reporting.
+
+Switch to `Advanced` when the image needs manual gray thresholds, circularity/elongation filters, numbered overlays, or more control over watershed separation.
+
+## Decorated Nanoparticles
+
+The `Decorated nanoparticles` preset is intended for systems such as SiO2 particles decorated with Au nanoparticles. It measures:
+
+- Au decoration diameter distribution.
+- SiO2 carrier outer diameter distribution.
+- Decorations per carrier.
+- Approximate decoration density per 1000 nm2.
+
+For synthesis-specific studies, record the source DOI, protocol notes, precursor concentration, Raman label, laser wavelength, and expected size range in the Corpus Builder metadata panel. The PDF or article itself should not be committed unless redistribution rights are clear.
+
+## AI Dataset v0
+
+The first AI training target is Au@SiO2 core-shell TEM instance segmentation, not decorated nanoparticles. The fixed v0 classes are:
+
+- `0: Au_core`
+- `1: SiO2_outer`
+
+Corpus prepares curated images, scale metadata, COCO master annotations, YOLO-seg exports, and dataset audits. Fine masks are created in CVAT or Label Studio. See `training/README.md` and `docs/dataset_sources.md`.
+
+To make a Colab-ready training bundle:
+
+```powershell
+python training\package_colab_bundle.py --synthetic-smoke --clean
+python training\package_colab_bundle.py --coco data\annotations\cvat_coco_imported.json --clean
+```
+
+Upload `data\training\colab_bundle\corpus_colab_training_bundle.zip` to `training\colab_train_yolo_seg.ipynb` and run all cells.
+
+Convenience commands:
+
+```powershell
+npm.cmd run training:synthetic-bundle
+npm.cmd run training:package
+```
+
+Local paper PDFs for candidate TEM figures can be kept in `Examples/pdfs TEM/`; they are ignored by Git. Use `python training\fetch_training_assets.py local-pdfs` to audit the local inventory and `docs/local_pdf_sources.md` for the current classification.
+
+## Outputs
+
+The measurement backend writes:
+
+- `processed_image.jpg`: overlay image.
+- `measurements.json`: complete settings, scale calibration, measurements, review flags, warnings, normality hints, and decorated-particle metrics when applicable.
+- `diameters.txt`: legacy compatibility output.
+
+Generated outputs are ignored by Git by default.
+
+## Relationship to Other Tools
+
+Corpus is inspired by common microscopy workflows, including thresholding, watershed, filtering, object review, and measurement summaries. It uses its own TEM-focused naming, UI, implementation, and documentation.
+
+- ImageJ/Fiji remains a broad, mature image-analysis environment.
+- CVAT and Label Studio are better for manual mask annotation at dataset scale.
+- Ultralytics and other deep-learning tools are better for trained segmentation once enough annotated data exists.
+- Corpus aims to be easier for curated TEM workflows where scale, metadata, review status, and exportable measurements matter from the first screen.
+
+## Limitations
+
+- Non-AI measurement is a pre-metrology tool, not final truth for complex overlaps, low contrast, or ambiguous shells.
+- Manual scale calibration is strongly recommended.
+- Watershed can over-split elongated particles, so it is off by default for rods/pellets.
+- Gaussian curves are visual/reference aids. For small sample sizes, `measurements.json` marks normality as insufficient rather than definitive.
+- Publication-quality datasets still need license checks, metadata review, and manual annotation when segmentation masks are required.
+
+## Development Checks
 
 ```bash
-sudo apt update
-sudo apt install -y nodejs npm python3 python3-pip git git-lfs
-python3 -m pip install --user opencv-python numpy pillow requests
+node --check main.js
+node --check render.js
+python3 -m py_compile measurement_modes.py python_script.py preview_image.py
+bash -n build-ubuntu.sh corpus-launch.sh
 ```
 
-Compilar el paquete Linux portable:
+## License
 
-```bash
-git clone https://github.com/RxWhizz/Corpus.git
-cd Corpus
-npm install
-npm run package:ubuntu
-```
-
-El artefacto generado es:
-
-```text
-dist/Corpus-1.0.0-linux-x64.tar.gz
-```
-
-Extraer y ejecutar:
-
-```bash
-tar -xzf dist/Corpus-1.0.0-linux-x64.tar.gz -C dist
-PYTHON=python3 ./dist/linux-unpacked/corpus
-```
-
-Para un paquete Debian, `npm run dist:linux:deb` está disponible, pero requiere `fpm` en la máquina de compilación.
-
-## Usage
-1. Generate a TEM graph with a white plotting scale 
-<div align=center>
-<img src = "https://static.igem.wiki/teams/4702/wiki/software/particle-size-distribution-counter/example.jpg" alt = "example image" style = "padding-left:25%; width:50%;"/>
-</div>
-
-2. After entering the app, choose the file path, measurement mode, shape preset, class-specific radius ranges, scale and width of the distribution bars in the scale's unit. Use `Core-shell spheres` for round Au/SiO2 objects, `Core-shell pellets / rods` for elongated particles, and `Generic particles` for the fallback contour detector. For best calibration, click `Mark Scale Line` and mark the two ends of the printed scale bar; the app fills `Manual Bar Length px` automatically and uses that line to calculate nm/px. `Separate touching particles (watershed)` splits touching round particles like ImageJ; it is on for spheres/generic and off for pellets by default. Then click to process image.
-<div align=center>
-<img src = "https://static.igem.wiki/teams/4702/wiki/software/particle-size-distribution-counter/main-display.png" alt = "example image" style = "padding-left:25%; width:75%;"/>
-</div>
-
-3. Then the app will generate an image with measured particles overlaid by class. `Measure Au decorations` marks small dark Au features in red, `Measure SiO2 carriers` marks the visible outer carrier boundary in cyan, and detections that need review are marked in yellow. The app also writes `measurements.json` with paired inner/outer object measurements, confidence scores and review flags.
-
-    <div align=center>
-    <img src = "https://static.igem.wiki/teams/4702/wiki/software/particle-size-distribution-counter/image.jpg" alt = "example image" style = "padding-left:12.5%; width:75%;"/>
-    </div>
-    And it will generate a bar graph, providing users with a clear and intuitive visualization of the particle size distribution.
-        <div align=center>
-    <img src = "https://static.igem.wiki/teams/4702/wiki/software/particle-size-distribution-counter/bar.png" alt = "example image" style = "padding-left:10%; width:80%;"/>
-    </div>
-
-## Contributing
-This code is open to contributions.
-## Authors and acknowledgment
-The inspiration of this script came from Shouyi Hu, and Haotian Shen brought it into codes.
-
+MIT. See `LICENSE`.

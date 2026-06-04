@@ -1,10 +1,9 @@
-
 {
   "name": "corpus",
   "version": "1.0.0",
   "description": "Corpus builder and particle measurement GUI for TEM nanoparticle datasets",
-  "homepage": "https://github.com/local/corpus",
-  "main": "main.js",  
+  "homepage": "https://github.com/RxWhizz/Corpus-New",
+  "main": "main.js",
   "build": {
     "productName": "Corpus",
     "appId": "org.corpus.tem",
@@ -41,7 +40,7 @@
   },
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "git+https://github.com/RxWhizz/Corpus-New.git"
   },
   "scripts": {
     "start": "electron .",
@@ -49,7 +48,15 @@
     "dist:linux": "electron-builder --linux dir --x64",
     "dist:linux:deb": "electron-builder --linux deb --x64",
     "package:ubuntu": "npm run dist:linux && tar -czf dist/Corpus-1.0.0-linux-x64.tar.gz -C dist linux-unpacked",
-    "package:ubuntu:appimage": "electron-builder --linux AppImage --x64"
+    "package:ubuntu:appimage": "electron-builder --linux AppImage --x64",
+    "training:synthetic-bundle": "node training/run_python.js training/package_colab_bundle.py --synthetic-smoke --clean",
+    "training:package": "node training/run_python.js training/package_colab_bundle.py --coco data/annotations/cvat_coco_imported.json --clean",
+    "training:audit": "node training/run_python.js training/audit_training_dataset.py --dataset data/training/yolo_seg",
+    "training:prepare-emps": "node training/run_python.js training/prepare_emps_yolo_seg.py --clean",
+    "training:package-emps": "node training/run_python.js training/package_colab_bundle.py --yolo-dir data/training/emps_yolo_seg --clean --min-au-core 0 --min-sio2-outer 0",
+    "figures:triage": "node training/run_python.js training/triage_pdf_figures.py --clean",
+    "figures:audit-review": "node training/run_python.js training/audit_triage_review.py",
+    "figures:separate-tem": "node training/run_python.js training/separate_review_marked_tem.py --clean"
   },
   "devDependencies": {
     "electron": "^26.1.0",
@@ -64,6 +71,5 @@
     "name": "Tesla_SHT",
     "email": "corpus@localhost"
   },
-  "license": "ISC"
+  "license": "MIT"
 }
-

@@ -5,6 +5,7 @@ from common_training import (
     CLASS_NAMES,
     DEFAULT_IMPORTED_COCO,
     category_mapping,
+    canonical_categories,
     load_json,
     write_json,
 )
@@ -19,10 +20,7 @@ def import_cvat_coco(coco_path, output_path):
         raise SystemExit(f"CVAT COCO must include both classes: {CLASS_NAMES}.")
 
     imported = dict(coco)
-    imported["categories"] = [
-        {"id": 0, "name": "Au_core", "supercategory": "nanoparticle"},
-        {"id": 1, "name": "SiO2_outer", "supercategory": "nanoparticle"},
-    ]
+    imported["categories"] = canonical_categories()
 
     remapped = []
     for annotation in imported.get("annotations", []):
@@ -39,6 +37,10 @@ def import_cvat_coco(coco_path, output_path):
             "source": str(Path(coco_path).resolve()),
             "format": "CVAT COCO instance segmentation",
             "classes": CLASS_NAMES,
+            "ontology": {
+                "Au_core": "Visible Au core instance mask.",
+                "SiO2_outer": "Full visible outer boundary of the Au@SiO2 particle.",
+            },
         }
     )
     write_json(output_path, imported)

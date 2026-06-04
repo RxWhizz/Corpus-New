@@ -1,4 +1,5 @@
 import argparse
+import csv
 
 from common import (
     CALIBRATION_CSV,
@@ -11,7 +12,18 @@ from common import (
     SOURCES_CSV,
     print_json,
     read_csv,
+    ROOT,
 )
+
+
+TRIAGE_MANIFEST = ROOT / "data" / "interim" / "figures" / "triaged" / "figure_triage_manifest.csv"
+
+
+def read_triage_rows():
+    if not TRIAGE_MANIFEST.exists():
+        return []
+    with TRIAGE_MANIFEST.open("r", newline="", encoding="utf-8") as handle:
+        return list(csv.DictReader(handle))
 
 
 def main():
@@ -21,6 +33,7 @@ def main():
     images = read_csv(IMAGES_CSV, IMAGE_FIELDS)
     calibrations = read_csv(CALIBRATION_CSV, CALIBRATION_FIELDS)
     review_queue = read_csv(REVIEW_QUEUE_CSV, REVIEW_FIELDS)
+    triage_rows = read_triage_rows()
 
     print_json(
         {
@@ -30,6 +43,7 @@ def main():
             "images": images,
             "calibrations": calibrations,
             "reviewQueue": review_queue,
+            "triageRows": triage_rows,
             "summary": {
                 "sources": len(sources),
                 "acceptedSources": sum(1 for row in sources if row["decision"] == "accepted"),
@@ -44,6 +58,13 @@ def main():
                 "imagesMissingScale": sum(1 for row in images if not row.get("nm_per_px")),
                 "imagesMissingChecksum": sum(1 for row in images if not row.get("file_sha256")),
                 "metadataReadyImages": sum(1 for row in images if row.get("metadata_status") == "ready"),
+                "triageRows": len(triage_rows),
+                "triageTem": sum(1 for row in triage_rows if row.get("classification") == "tem"),
+                "triageGraphs": sum(1 for row in triage_rows if row.get("classification") == "graph"),
+                "triageAbstracts": sum(1 for row in triage_rows if row.get("classification") == "abstract_or_scheme"),
+                "triageMixed": sum(1 for row in triage_rows if row.get("classification") == "mixed_figure"),
+                "triageNeedsReview": sum(1 for row in triage_rows if row.get("classification") == "needs_review"),
+                "triageTiles": sum(1 for row in triage_rows if row.get("tile_path")),
             },
         }
     )

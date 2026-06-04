@@ -8,6 +8,7 @@ from common_training import (
     DEFAULT_IMPORTED_COCO,
     DEFAULT_YOLO_DIR,
     ROOT,
+    annotation_review_status,
     category_mapping,
     copy_image,
     load_json,
@@ -51,6 +52,7 @@ def corpus_image_index():
 def annotations_by_image(coco, category_map):
     grouped = defaultdict(list)
     warnings = []
+    skipped_review = 0
     for annotation in coco.get("annotations", []):
         image_id = annotation.get("image_id")
         category_id = annotation.get("category_id")
@@ -61,7 +63,12 @@ def annotations_by_image(coco, category_map):
         if not isinstance(segmentation, list):
             warnings.append(f"Annotation {annotation.get('id')} uses RLE segmentation; skipped.")
             continue
+        if annotation_review_status(annotation) != "ready":
+            skipped_review += 1
+            continue
         grouped[image_id].append((category_map[category_id], segmentation))
+    if skipped_review:
+        warnings.append(f"Skipped {skipped_review} needs_review/ignored annotations.")
     return grouped, warnings
 
 
@@ -95,12 +102,14 @@ def prepare_yolo(coco_path, output_dir):
     exported_images = 0
     exported_labels = 0
     skipped_without_labels = 0
+    class_counts = {name: 0 for name in CLASS_NAMES}
 
     for image, source_path, corpus_row, group, split in image_infos:
         split = split if split in {"train", "val", "test"} else split_for_group(group, ranked_groups)
         width = int(image.get("width") or corpus_row.get("width") or 0)
         height = int(image.get("height") or corpus_row.get("height") or 0)
         label_lines = []
+        image_class_counts = {name: 0 for name in CLASS_NAMES}
         for class_id, polygons in annotations.get(image.get("id"), []):
             for polygon in polygons:
                 normalized = normalize_polygon(polygon, width, height)
@@ -108,6 +117,9 @@ def prepare_yolo(coco_path, output_dir):
                     warnings.append(f"Invalid polygon in image {image.get('id')}; skipped.")
                     continue
                 label_lines.append(" ".join([str(class_id)] + [f"{value:.6f}" for value in normalized]))
+                class_name = CLASS_NAMES[class_id]
+                class_counts[class_name] += 1
+                image_class_counts[class_name] += 1
 
         if not label_lines:
             skipped_without_labels += 1
@@ -126,21 +138,32 @@ def prepare_yolo(coco_path, output_dir):
                 "image_id": image.get("id"),
                 "source_id": group,
                 "split": split,
+                "dataset_layer": corpus_row.get("dataset_layer") or image.get("dataset_layer") or image.get("metadata", {}).get("dataset_layer", ""),
                 "image_path": str(image_target),
                 "label_path": str(label_target),
                 "labels": len(label_lines),
+                "au_core_labels": image_class_counts["Au_core"],
+                "sio2_outer_labels": image_class_counts["SiO2_outer"],
+                "nm_per_px": corpus_row.get("nm_per_px") or image.get("nm_per_px") or image.get("metadata", {}).get("nm_per_px", ""),
+                "license": corpus_row.get("license") or image.get("license") or image.get("metadata", {}).get("license", ""),
+                "license_status": corpus_row.get("license_status") or image.get("license_status") or image.get("metadata", {}).get("license_status", ""),
+                "doi": corpus_row.get("doi") or image.get("metadata", {}).get("doi", ""),
+                "source_url": corpus_row.get("source_url") or image.get("metadata", {}).get("source_url", ""),
+                "figure_label": corpus_row.get("figure_label") or image.get("metadata", {}).get("figure_label", ""),
+                "panel_label": corpus_row.get("panel_label") or image.get("metadata", {}).get("panel_label", ""),
+                "caption": corpus_row.get("caption") or image.get("metadata", {}).get("caption", ""),
             }
         )
 
     data_yaml = output_dir / "data.yaml"
+    names_yaml = "\n".join(f"  {index}: {name}" for index, name in enumerate(CLASS_NAMES))
     data_yaml.write_text(
-        f"path: {output_dir.as_posix()}\n"
+        "path: .\n"
         "train: images/train\n"
         "val: images/val\n"
         "test: images/test\n"
         "names:\n"
-        "  0: Au_core\n"
-        "  1: SiO2_outer\n",
+        f"{names_yaml}\n",
         encoding="utf-8",
     )
     write_manifest(output_dir / "manifest.csv", manifest)
@@ -150,6 +173,7 @@ def prepare_yolo(coco_path, output_dir):
         "data_yaml": str(data_yaml),
         "images": exported_images,
         "labels": exported_labels,
+        "class_counts": class_counts,
         "skipped_without_labels": skipped_without_labels,
         "warnings": len(warnings),
     }

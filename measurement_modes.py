@@ -33,7 +33,17 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Measure Au/SiO2 particles without AI.")
     parser.add_argument("--image", required=True)
     parser.add_argument("--mode", choices=["au", "sio2", "both"], default="au")
-    parser.add_argument("--shape-preset", choices=["generic", "spheres", "pellets"], default="generic")
+    parser.add_argument("--shape-preset", choices=["generic", "spheres", "pellets", "decorated"], default="generic")
+    parser.add_argument("--ui-mode", choices=["easy", "advanced"], default="easy")
+    parser.add_argument("--contrast-strategy", choices=["dark_particles", "bright_shells", "manual_gray_range"], default="dark_particles")
+    parser.add_argument("--manual-threshold-min", type=float, default=0)
+    parser.add_argument("--manual-threshold-max", type=float, default=255)
+    parser.add_argument("--min-circularity", type=float, default=0)
+    parser.add_argument("--max-circularity", type=float, default=1)
+    parser.add_argument("--min-elongation", type=float, default=1)
+    parser.add_argument("--max-elongation", type=float, default=999)
+    parser.add_argument("--include-holes", default="false")
+    parser.add_argument("--review-view", choices=["overlay", "numbered"], default="overlay")
     parser.add_argument("--scale", required=True, type=float)
     parser.add_argument("--manual-scale-px", type=float, default=0)
     parser.add_argument("--manual-scale-line", default="")
@@ -74,6 +84,46 @@ def resolve_watershed(value, shape_preset):
     if str(value).strip().lower() == "auto":
         return shape_preset != "pellets"
     return parse_bool(value)
+
+
+def clamp_filter_settings(args):
+    threshold_min = max(0, min(255, args.manual_threshold_min))
+    threshold_max = max(0, min(255, args.manual_threshold_max))
+    if threshold_min > threshold_max:
+        threshold_min, threshold_max = threshold_max, threshold_min
+    min_circularity = max(0.0, min(1.0, args.min_circularity))
+    max_circularity = max(0.0, min(1.0, args.max_circularity))
+    min_elongation = max(1.0, args.min_elongation)
+    max_elongation = max(1.0, args.max_elongation)
+    if min_circularity > max_circularity:
+        min_circularity, max_circularity = max_circularity, min_circularity
+    if min_elongation > max_elongation:
+        min_elongation, max_elongation = max_elongation, min_elongation
+    return {
+        "ui_mode": args.ui_mode,
+        "contrast_strategy": args.contrast_strategy,
+        "manual_threshold_min": threshold_min,
+        "manual_threshold_max": threshold_max,
+        "min_circularity": min_circularity,
+        "max_circularity": max_circularity,
+        "min_elongation": min_elongation,
+        "max_elongation": max_elongation,
+        "include_holes": parse_bool(args.include_holes),
+        "review_view": args.review_view
+    }
+
+
+def particle_binary(gray, settings, default_threshold=80):
+    strategy = settings.get("contrast_strategy", "dark_particles")
+    if strategy == "manual_gray_range":
+        lo = int(settings.get("manual_threshold_min", 0))
+        hi = int(settings.get("manual_threshold_max", default_threshold))
+        return cv2.inRange(gray, lo, hi)
+    if strategy == "bright_shells":
+        _, binary = cv2.threshold(gray, 185, 255, cv2.THRESH_BINARY)
+        return binary
+    _, binary = cv2.threshold(gray, default_threshold, 255, cv2.THRESH_BINARY_INV)
+    return binary
 
 
 def read_image(image_path):
@@ -283,11 +333,16 @@ def watershed_split_contours(binary, min_radius_px, max_radius_px, distance_fact
     return split_contours or original_contours
 
 
-def contour_measurements(contours, class_name, min_radius_px, max_radius_px, nm_per_px, color, overlay, ignored_regions, exclude_edges, measurement_flags=None, separation_method="contour"):
+def contour_measurements(contours, class_name, min_radius_px, max_radius_px, nm_per_px, color, overlay, ignored_regions, exclude_edges, measurement_flags=None, separation_method="contour", filter_settings=None):
     measurements = []
     min_area = math.pi * min_radius_px**2
     max_area = math.pi * max_radius_px**2 * 3.0
     measurement_flags = measurement_flags or []
+    filter_settings = filter_settings or {}
+    min_circularity = filter_settings.get("min_circularity", 0)
+    max_circularity = filter_settings.get("max_circularity", 1)
+    min_elongation = filter_settings.get("min_elongation", 1)
+    max_elongation = filter_settings.get("max_elongation", 999)
 
     for contour in contours:
         area = cv2.contourArea(contour)
@@ -312,6 +367,10 @@ def contour_measurements(contours, class_name, min_radius_px, max_radius_px, nm_
         circularity = 4 * math.pi * area / (perimeter * perimeter)
         aspect_ratio = major_px / minor_px
         radius_px = major_px / 2
+        if not (min_circularity <= circularity <= max_circularity):
+            continue
+        if not (min_elongation <= aspect_ratio <= max_elongation):
+            continue
         is_round = circularity >= 0.55 and aspect_ratio < 1.8
         is_elongated = circularity >= 0.25 and aspect_ratio >= 1.8
         if not (is_round or is_elongated):
@@ -382,9 +441,10 @@ def flat_measurement(class_name, center_x, center_y, major_px, minor_px, area_px
     }
 
 
-def detect_au_contours(image, min_radius_px, max_radius_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled=False, watershed_factor=0.55):
+def detect_au_contours(image, min_radius_px, max_radius_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled=False, watershed_factor=0.55, filter_settings=None):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    _, binary = cv2.threshold(gray, 80, 255, cv2.THRESH_BINARY_INV)
+    filter_settings = filter_settings or {}
+    binary = particle_binary(gray, filter_settings, 80)
     watershed_binary = binary.copy()
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
     binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel, iterations=1)
@@ -405,9 +465,10 @@ def detect_au_contours(image, min_radius_px, max_radius_px, nm_per_px, overlay, 
                 ignored_regions,
                 exclude_edges,
                 ["watershed_split"],
-                "watershed"
+                "watershed",
+                filter_settings
             )
-    return contour_measurements(legacy_contours, AU_CLASS, min_radius_px, max_radius_px, nm_per_px, INNER_COLOR, overlay, ignored_regions, exclude_edges)
+    return contour_measurements(legacy_contours, AU_CLASS, min_radius_px, max_radius_px, nm_per_px, INNER_COLOR, overlay, ignored_regions, exclude_edges, filter_settings=filter_settings)
 
 
 def hough_circle_measurements(gray, class_name, min_radius_px, max_radius_px, nm_per_px, color, overlay, ignored_regions, exclude_edges):
@@ -542,14 +603,16 @@ def object_row(index, preset, inner=None, outer=None, extra_flags=None):
     }
 
 
-def sio2_mask(image):
+def sio2_mask(image, include_holes=False):
     gray = cv2.GaussianBlur(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), (7, 7), 0)
     adaptive = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 35, 3)
-    return cv2.morphologyEx(adaptive, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8), iterations=2)
+    kernel_size = 3 if include_holes else 9
+    return cv2.morphologyEx(adaptive, cv2.MORPH_CLOSE, np.ones((kernel_size, kernel_size), np.uint8), iterations=2)
 
 
-def detect_sio2_watershed(image, min_radius_px, max_radius_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_factor=0.55):
-    binary = sio2_mask(image)
+def detect_sio2_watershed(image, min_radius_px, max_radius_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_factor=0.55, filter_settings=None):
+    filter_settings = filter_settings or {}
+    binary = sio2_mask(image, filter_settings.get("include_holes", False))
     original_contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     contours = watershed_split_contours(binary, min_radius_px, max_radius_px, watershed_factor)
     if len(contours) <= len(original_contours):
@@ -565,16 +628,17 @@ def detect_sio2_watershed(image, min_radius_px, max_radius_px, nm_per_px, overla
         ignored_regions,
         exclude_edges,
         ["watershed_split"],
-        "watershed"
+        "watershed",
+        filter_settings
     )
 
 
-def run_spheres(image, mode, au_min_px, au_max_px, sio2_min_px, sio2_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled=False, watershed_factor=0.55):
+def run_spheres(image, mode, au_min_px, au_max_px, sio2_min_px, sio2_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled=False, watershed_factor=0.55, filter_settings=None):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    inner = detect_au_contours(image, au_min_px, au_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled, watershed_factor) if mode in ("au", "both") else []
+    inner = detect_au_contours(image, au_min_px, au_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled, watershed_factor, filter_settings) if mode in ("au", "both") else []
     outer = hough_circle_measurements(gray, SIO2_CLASS, sio2_min_px, sio2_max_px, nm_per_px, OUTER_COLOR, overlay, ignored_regions, exclude_edges) if mode in ("sio2", "both") else []
     if watershed_enabled and mode in ("sio2", "both"):
-        for row in detect_sio2_watershed(image, sio2_min_px, sio2_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_factor):
+        for row in detect_sio2_watershed(image, sio2_min_px, sio2_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_factor, filter_settings):
             if not is_duplicate(row, outer):
                 outer.append(row)
 
@@ -680,9 +744,9 @@ def anchored_pellet_outer(gray, anchors, min_radius_px, max_radius_px, nm_per_px
     return measurements
 
 
-def run_pellets(image, mode, au_min_px, au_max_px, sio2_min_px, sio2_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled=False, watershed_factor=0.55):
+def run_pellets(image, mode, au_min_px, au_max_px, sio2_min_px, sio2_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled=False, watershed_factor=0.55, filter_settings=None):
     gray = cv2.GaussianBlur(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), (7, 7), 0)
-    inner = detect_au_contours(image, au_min_px, au_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled, watershed_factor) if mode in ("au", "both") else []
+    inner = detect_au_contours(image, au_min_px, au_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled, watershed_factor, filter_settings) if mode in ("au", "both") else []
     anchors = [row for row in inner if row.get("aspect_ratio", 1) >= 1.45] or inner
     outer = anchored_pellet_outer(gray, anchors, sio2_min_px, sio2_max_px, nm_per_px, overlay, ignored_regions, exclude_edges) if mode in ("sio2", "both") else []
 
@@ -713,18 +777,19 @@ def run_pellets(image, mode, au_min_px, au_max_px, sio2_min_px, sio2_max_px, nm_
     return objects, inner + outer
 
 
-def detect_sio2_generic(image, min_radius_px, max_radius_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled=False, watershed_factor=0.55):
+def detect_sio2_generic(image, min_radius_px, max_radius_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled=False, watershed_factor=0.55, filter_settings=None):
     gray = cv2.GaussianBlur(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), (7, 7), 0)
-    closed = sio2_mask(image)
+    filter_settings = filter_settings or {}
+    closed = sio2_mask(image, filter_settings.get("include_holes", False))
     contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if watershed_enabled:
         split_contours = watershed_split_contours(closed, min_radius_px, max_radius_px, watershed_factor)
         if len(split_contours) > len(contours):
-            measurements = contour_measurements(split_contours, SIO2_CLASS, min_radius_px, max_radius_px, nm_per_px, OUTER_COLOR, overlay, ignored_regions, exclude_edges, ["watershed_split"], "watershed")
+            measurements = contour_measurements(split_contours, SIO2_CLASS, min_radius_px, max_radius_px, nm_per_px, OUTER_COLOR, overlay, ignored_regions, exclude_edges, ["watershed_split"], "watershed", filter_settings)
         else:
-            measurements = contour_measurements(contours, SIO2_CLASS, min_radius_px, max_radius_px, nm_per_px, OUTER_COLOR, overlay, ignored_regions, exclude_edges)
+            measurements = contour_measurements(contours, SIO2_CLASS, min_radius_px, max_radius_px, nm_per_px, OUTER_COLOR, overlay, ignored_regions, exclude_edges, filter_settings=filter_settings)
     else:
-        measurements = contour_measurements(contours, SIO2_CLASS, min_radius_px, max_radius_px, nm_per_px, OUTER_COLOR, overlay, ignored_regions, exclude_edges)
+        measurements = contour_measurements(contours, SIO2_CLASS, min_radius_px, max_radius_px, nm_per_px, OUTER_COLOR, overlay, ignored_regions, exclude_edges, filter_settings=filter_settings)
 
     for row in hough_circle_measurements(gray, SIO2_CLASS, min_radius_px, max_radius_px, nm_per_px, OUTER_COLOR, overlay, ignored_regions, exclude_edges):
         if not is_duplicate(row, measurements):
@@ -732,9 +797,9 @@ def detect_sio2_generic(image, min_radius_px, max_radius_px, nm_per_px, overlay,
     return measurements
 
 
-def run_generic(image, mode, au_min_px, au_max_px, sio2_min_px, sio2_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled=False, watershed_factor=0.55):
-    inner = detect_au_contours(image, au_min_px, au_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled, watershed_factor) if mode in ("au", "both") else []
-    outer = detect_sio2_generic(image, sio2_min_px, sio2_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled, watershed_factor) if mode in ("sio2", "both") else []
+def run_generic(image, mode, au_min_px, au_max_px, sio2_min_px, sio2_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled=False, watershed_factor=0.55, filter_settings=None):
+    inner = detect_au_contours(image, au_min_px, au_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled, watershed_factor, filter_settings) if mode in ("au", "both") else []
+    outer = detect_sio2_generic(image, sio2_min_px, sio2_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled, watershed_factor, filter_settings) if mode in ("sio2", "both") else []
     objects = []
     index = 1
     for row in inner:
@@ -744,6 +809,68 @@ def run_generic(image, mode, au_min_px, au_max_px, sio2_min_px, sio2_max_px, nm_
         objects.append(object_row(index, "generic", None, row))
         index += 1
     return objects, inner + outer
+
+
+def run_decorated(image, mode, au_min_px, au_max_px, sio2_min_px, sio2_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled=False, watershed_factor=0.55, filter_settings=None):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    decorations = detect_au_contours(image, au_min_px, au_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled, watershed_factor, filter_settings) if mode in ("au", "both") else []
+    carriers = hough_circle_measurements(gray, SIO2_CLASS, sio2_min_px, sio2_max_px, nm_per_px, OUTER_COLOR, overlay, ignored_regions, exclude_edges) if mode in ("sio2", "both") else []
+    if mode in ("sio2", "both"):
+        for row in detect_sio2_generic(image, sio2_min_px, sio2_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled, watershed_factor, filter_settings):
+            if not is_duplicate(row, carriers, factor=0.8):
+                carriers.append(row)
+
+    objects = []
+    assigned_decorations = set()
+    index = 1
+    for carrier in carriers:
+        radius_px = max(carrier.get("radius_px", 0), 1)
+        inside = []
+        for decoration in decorations:
+            dx = decoration["center_x"] - carrier["center_x"]
+            dy = decoration["center_y"] - carrier["center_y"]
+            if math.hypot(dx, dy) <= radius_px * 1.05:
+                inside.append(decoration)
+                assigned_decorations.add(id(decoration))
+
+        row = object_row(index, "decorated", None, carrier)
+        row["pair_status"] = "decorated_carrier"
+        row["decoration_count"] = len(inside)
+        projected_area = math.pi * max(carrier.get("major_axis", 0) / 2, 1e-6) * max(carrier.get("minor_axis", 0) / 2, 1e-6)
+        row["decoration_density_per_1000_nm2"] = (len(inside) / projected_area) * 1000 if projected_area > 0 else 0
+        row["mean_decoration_diameter"] = sum(item["diameter"] for item in inside) / len(inside) if inside else 0
+        row["flags"] = sorted(set(flag for flag in row["flags"] if flag != "unpaired_inner"))
+        if inside:
+            row["review_status"] = "ready" if row["confidence_score"] >= 0.7 else "needs_review"
+        else:
+            row["review_status"] = "needs_review"
+            row["flags"] = sorted(set(row["flags"] + ["no_decorations_detected"]))
+        objects.append(row)
+        index += 1
+
+    if mode in ("au", "both"):
+        for decoration in decorations:
+            if mode == "au" or id(decoration) not in assigned_decorations:
+                objects.append(object_row(index, "decorated", decoration, None, ["unassigned_decoration"]))
+                index += 1
+
+    return objects, decorations + carriers
+
+
+def summarize_decorated(objects):
+    carriers = [row for row in objects if row.get("preset") == "decorated" and row.get("outer_major_axis")]
+    if not carriers:
+        return None
+    counts = [row.get("decoration_count", 0) for row in carriers]
+    densities = [row.get("decoration_density_per_1000_nm2", 0) for row in carriers]
+    mean_decoration_diameters = [row.get("mean_decoration_diameter", 0) for row in carriers if row.get("mean_decoration_diameter", 0) > 0]
+    return {
+        "carriers": len(carriers),
+        "total_decorations_on_carriers": sum(counts),
+        "mean_decorations_per_carrier": sum(counts) / len(counts),
+        "mean_decoration_density_per_1000_nm2": sum(densities) / len(densities) if densities else 0,
+        "mean_decoration_diameter": sum(mean_decoration_diameters) / len(mean_decoration_diameters) if mean_decoration_diameters else 0
+    }
 
 
 def summarize_class_measurements(class_measurements):
@@ -778,6 +905,74 @@ def summarize_objects(objects):
     }
 
 
+def normality_stats(values):
+    values = [float(value) for value in values if value and value > 0]
+    n = len(values)
+    if n == 0:
+        return {"n": 0, "normality_hint": "no data"}
+    mean = sum(values) / n
+    variance = sum((value - mean) ** 2 for value in values) / n
+    std = math.sqrt(variance)
+    if n < 8 or std <= 1e-9:
+        return {
+            "n": n,
+            "mean": mean,
+            "std": std,
+            "normality_hint": "insufficient_n"
+        }
+    skewness = sum(((value - mean) / std) ** 3 for value in values) / n
+    kurtosis_excess = sum(((value - mean) / std) ** 4 for value in values) / n - 3
+    hint = "roughly_normal" if abs(skewness) < 1 and abs(kurtosis_excess) < 2 else "check_distribution"
+    return {
+        "n": n,
+        "mean": mean,
+        "std": std,
+        "skewness": skewness,
+        "kurtosis_excess": kurtosis_excess,
+        "normality_hint": hint
+    }
+
+
+def build_normality_report(objects, class_measurements):
+    report = {}
+    for class_name in sorted({row["class"] for row in class_measurements}):
+        report[f"{class_name}_diameter"] = normality_stats(
+            [row["diameter"] for row in class_measurements if row["class"] == class_name]
+        )
+    report["inner_major_axis"] = normality_stats([row.get("inner_major_axis") for row in objects])
+    report["outer_major_axis"] = normality_stats([row.get("outer_major_axis") for row in objects])
+    report["shell_thickness"] = normality_stats([row.get("shell_thickness_estimate") for row in objects])
+    return report
+
+
+def build_warnings(image, objects, selected_scale):
+    warnings = []
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    if float(np.std(gray)) < 18:
+        warnings.append("Low contrast")
+    if selected_scale.get("method") not in ("manual_line", "manual_override"):
+        warnings.append("Scale was auto-detected; manual scale is recommended")
+    if objects:
+        edge_count = sum(1 for row in objects if "edge" in row.get("flags", []))
+        unpaired_count = sum(1 for row in objects if row.get("pair_status") == "partial")
+        if edge_count / len(objects) > 0.25:
+            warnings.append("Too many edge objects")
+        if unpaired_count / len(objects) > 0.35:
+            warnings.append("Many unpaired objects")
+    return warnings
+
+
+def draw_review_labels(overlay, objects):
+    for row in objects:
+        x = int(row.get("center_x", 0))
+        y = int(row.get("center_y", 0))
+        label = str(row.get("object_id", "")).replace("obj_", "")
+        if not label:
+            continue
+        cv2.putText(overlay, label, (x + 5, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (20, 20, 20), 2, cv2.LINE_AA)
+        cv2.putText(overlay, label, (x + 5, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (255, 255, 255), 1, cv2.LINE_AA)
+
+
 def write_compat_files(nm_per_px, class_measurements, preferred_class):
     preferred = [row for row in class_measurements if row["class"] == preferred_class]
     rows = preferred or class_measurements
@@ -797,6 +992,7 @@ def main():
     if image is None:
         fail(f"Could not read image: {image_path}")
 
+    filter_settings = clamp_filter_settings(args)
     exclude_edges = parse_bool(args.exclude_edges)
     watershed_enabled = resolve_watershed(args.watershed, args.shape_preset)
     manual_scale_line = parse_manual_scale_line(args.manual_scale_line)
@@ -814,17 +1010,22 @@ def main():
     sio2_max_px = args.sio2_max_radius / nm_per_px
 
     if args.shape_preset == "spheres":
-        objects, class_measurements = run_spheres(image, args.mode, au_min_px, au_max_px, sio2_min_px, sio2_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled, args.watershed_min_distance_factor)
+        objects, class_measurements = run_spheres(image, args.mode, au_min_px, au_max_px, sio2_min_px, sio2_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled, args.watershed_min_distance_factor, filter_settings)
     elif args.shape_preset == "pellets":
-        objects, class_measurements = run_pellets(image, args.mode, au_min_px, au_max_px, sio2_min_px, sio2_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled, args.watershed_min_distance_factor)
+        objects, class_measurements = run_pellets(image, args.mode, au_min_px, au_max_px, sio2_min_px, sio2_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled, args.watershed_min_distance_factor, filter_settings)
+    elif args.shape_preset == "decorated":
+        objects, class_measurements = run_decorated(image, args.mode, au_min_px, au_max_px, sio2_min_px, sio2_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled, args.watershed_min_distance_factor, filter_settings)
     else:
-        objects, class_measurements = run_generic(image, args.mode, au_min_px, au_max_px, sio2_min_px, sio2_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled, args.watershed_min_distance_factor)
+        objects, class_measurements = run_generic(image, args.mode, au_min_px, au_max_px, sio2_min_px, sio2_max_px, nm_per_px, overlay, ignored_regions, exclude_edges, watershed_enabled, args.watershed_min_distance_factor, filter_settings)
 
     for row in objects:
         if row["review_status"] != "ready":
             x = int(row.get("center_x", 0))
             y = int(row.get("center_y", 0))
             cv2.circle(overlay, (x, y), 4, REVIEW_COLOR, -1)
+
+    if filter_settings["review_view"] == "numbered":
+        draw_review_labels(overlay, objects)
 
     cv2.imwrite(OUTPUT_IMAGE, overlay)
     payload = {
@@ -834,6 +1035,15 @@ def main():
         "exclude_edges": exclude_edges,
         "watershed": watershed_enabled,
         "separation_method": "watershed" if watershed_enabled else "contour/hough",
+        "analysis_settings": {
+            "ui_mode": args.ui_mode,
+            "measurement_mode": args.mode,
+            "shape_preset": args.shape_preset,
+            "scale_nm": args.scale,
+            "histogram_bin_width": args.histogram_bin_width,
+            "review_view": args.review_view
+        },
+        "filter_settings": filter_settings,
         "processed_image_path": os.path.abspath(OUTPUT_IMAGE),
         "measurements_path": os.path.abspath(MEASUREMENTS_JSON),
         "nm_per_px": nm_per_px,
@@ -844,7 +1054,11 @@ def main():
         "measurements": objects,
         "class_measurements": class_measurements,
         "summary": summarize_class_measurements(class_measurements),
-        "object_summary": summarize_objects(objects)
+        "object_summary": summarize_objects(objects),
+        "normality_report": build_normality_report(objects, class_measurements),
+        "manual_edits": [],
+        "decorated_particle_metrics": summarize_decorated(objects),
+        "warnings": build_warnings(image, objects, selected_scale)
     }
 
     preferred_class = AU_CLASS if args.mode != "sio2" else SIO2_CLASS

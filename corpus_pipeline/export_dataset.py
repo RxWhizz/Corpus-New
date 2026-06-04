@@ -26,6 +26,31 @@ CATEGORIES = [
     {"id": 1, "name": "SiO2_outer", "supercategory": "nanoparticle"},
 ]
 
+PUBLIC_LICENSE_HINTS = ("cc by", "cc-by", "cc0", "public domain")
+BLOCKED_LICENSE_HINTS = ("nc", "nd", "noncommercial", "no derivatives")
+
+
+def is_public_license(row):
+    license_text = " ".join(
+        str(row.get(key, "")).lower()
+        for key in ("license", "license_url", "license_status")
+    )
+    if str(row.get("license_status", "")).lower() == "accepted" and not any(hint in license_text for hint in BLOCKED_LICENSE_HINTS):
+        return True
+    return any(hint in license_text for hint in PUBLIC_LICENSE_HINTS) and not any(
+        hint in license_text for hint in BLOCKED_LICENSE_HINTS
+    )
+
+
+def dataset_layer(image, source):
+    notes = str(image.get("notes", "")).lower()
+    source_type = str(source.get("source_type", "")).lower()
+    if "synthetic" in notes or "synthetic" in source_type:
+        return "synthetic_core_shell"
+    if is_public_license(image) or is_public_license(source):
+        return "public_demo"
+    return "private_training"
+
 
 def create_coco_template(images, sources=None, public_only=False):
     sources_by_id = {source["source_id"]: source for source in (sources or []) if source.get("source_id")}
@@ -34,7 +59,8 @@ def create_coco_template(images, sources=None, public_only=False):
         if image.get("curation_status") != "accepted":
             continue
         source = sources_by_id.get(image.get("source_id", ""), {})
-        if public_only and source.get("license_status") != "accepted":
+        layer = dataset_layer(image, source)
+        if public_only and layer != "public_demo":
             continue
         coco_images.append(
             {
@@ -46,6 +72,7 @@ def create_coco_template(images, sources=None, public_only=False):
                 "source_id": image["source_id"],
                 "license": image["license"],
                 "license_status": source.get("license_status", ""),
+                "dataset_layer": layer,
                 "nm_per_px": image["nm_per_px"],
                 "split": image["split"] or "train",
                 "metadata": {
@@ -56,6 +83,7 @@ def create_coco_template(images, sources=None, public_only=False):
                     "journal": source.get("journal", ""),
                     "year": source.get("year", ""),
                     "license_url": source.get("license_url", ""),
+                    "dataset_layer": layer,
                     "figure_label": image.get("figure_label", ""),
                     "panel_label": image.get("panel_label", ""),
                     "caption": image.get("caption", ""),
@@ -70,10 +98,10 @@ def create_coco_template(images, sources=None, public_only=False):
     return {"images": coco_images, "annotations": [], "categories": CATEGORIES}
 
 
-def export_coco():
+def export_coco(public_only=False):
     images = read_csv(IMAGES_CSV, IMAGE_FIELDS)
     sources = read_csv(SOURCES_CSV, SOURCE_FIELDS)
-    coco = create_coco_template(images, sources)
+    coco = create_coco_template(images, sources, public_only=public_only)
     ANNOTATIONS_DIR.mkdir(parents=True, exist_ok=True)
     COCO_MASTER_JSON.write_text(json.dumps(coco, indent=2), encoding="utf-8")
     return {"path": str(COCO_MASTER_JSON), "images": len(coco["images"])}
@@ -144,13 +172,14 @@ def generate_audit():
 def main():
     parser = argparse.ArgumentParser(description="Export corpus annotations and reports.")
     parser.add_argument("--coco", action="store_true")
+    parser.add_argument("--public-only", action="store_true")
     parser.add_argument("--yolo", action="store_true")
     parser.add_argument("--audit", action="store_true")
     args = parser.parse_args()
 
     outputs = {}
     if args.coco or not (args.coco or args.yolo or args.audit):
-        outputs["coco"] = export_coco()
+        outputs["coco"] = export_coco(public_only=args.public_only)
     if args.yolo:
         outputs["yolo"] = export_yolo()
     if args.audit:
